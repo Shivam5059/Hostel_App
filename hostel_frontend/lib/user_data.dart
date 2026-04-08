@@ -78,11 +78,6 @@ class UserSession {
       case 'STUDENT':
         return [
           RoleFunction(
-            title: 'Peers',
-            icon: Icons.group_outlined,
-            page: const StudentsView(),
-          ),
-          RoleFunction(
             title: 'Leaves',
             icon: Icons.event_busy_outlined,
             page: const LeavesView(),
@@ -203,11 +198,6 @@ class UserSession {
             title: 'New Admission',
             icon: Icons.how_to_reg_outlined,
             page: const NewAdmissionView(),
-          ),
-          RoleFunction(
-            title: 'Attendance',
-            icon: Icons.assignment_turned_in_outlined,
-            page: const AttendanceView(),
           ),
           RoleFunction(
             title: 'Complaints',

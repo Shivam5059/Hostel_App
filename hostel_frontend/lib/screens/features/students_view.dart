@@ -24,7 +24,12 @@ class _StudentsViewState extends State<StudentsView> {
 
   void _refresh() {
     setState(() {
-      _myStudentsFuture = ApiManager.fetchAssignedStudents();
+      if (UserSession.role == 'RECTOR') {
+        _myStudentsFuture = ApiManager.fetchAllStudents();
+      } else {
+        _myStudentsFuture = ApiManager.fetchAssignedStudents();
+      }
+
       if (UserSession.role == 'COUNSELOR') {
         _unassignedStudentsFuture = ApiManager.fetchUnassignedStudents();
       } else if (UserSession.role == 'WARDEN') {

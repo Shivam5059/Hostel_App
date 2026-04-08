@@ -137,6 +137,10 @@ class ApiManager {
     return [];
   }
 
+  static Future<List<dynamic>> fetchAllStudents() async {
+    return _getList('/rector/students');
+  }
+
   static Future<Map<String, dynamic>?> fetchStudentDetails(
     int studentId,
   ) async {

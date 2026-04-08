@@ -697,6 +697,22 @@ def assign_student_room(student_id):
 def get_rector_counselors():
     return jsonify(query_db('SELECT user_id, name, email FROM "user" WHERE UPPER(role) = "COUNSELOR" ORDER BY name'))
 
+@app.route("/api/rector/students", methods=["GET"])
+def get_all_students_rector():
+    query = """
+        SELECT s.student_id, s.roll_no, u.name, u.email, u.phone, 
+               h.hostel_name, r.room_number,
+               cu.name as counselor_name, pu.name as parent_name
+        FROM student s
+        JOIN "user" u ON s.user_id = u.user_id
+        LEFT JOIN room r ON s.room_id = r.room_id
+        LEFT JOIN hostel h ON r.hostel_id = h.hostel_id
+        LEFT JOIN "user" cu ON s.counselor_id = cu.user_id
+        LEFT JOIN "user" pu ON s.parent_id = pu.user_id
+        ORDER BY u.name ASC
+    """
+    return jsonify(query_db(query))
+
 @app.route("/api/rector/student", methods=["POST"])
 def register_student():
     data = request.get_json()
