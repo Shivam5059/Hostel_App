@@ -18,7 +18,6 @@ ENV/
 *.log
 
 # Database
-*.sqlite
 *.sqlite-journal
 
 # Compiled code
