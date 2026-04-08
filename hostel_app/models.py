@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
 
-
-def _now():
-    return datetime.now(timezone.utc)
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from hostel_app import db
+
+
+def _now():
+    return datetime.now(timezone.utc)
 
 
 class User(UserMixin, db.Model):

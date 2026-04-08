@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
+from urllib.parse import urlsplit
 from flask_login import login_user, logout_user, login_required, current_user
 from hostel_app import db
 from hostel_app.models import User
@@ -17,7 +18,10 @@ def login():
         if user and user.check_password(password):
             login_user(user, remember=request.form.get("remember_me") == "on")
             next_page = request.args.get("next")
-            return redirect(next_page or url_for("main.dashboard"))
+            # Validate next_page to prevent open redirect
+            if not next_page or urlsplit(next_page).netloc != "":
+                next_page = url_for("main.dashboard")
+            return redirect(next_page)
         flash("Invalid username or password.", "danger")
     return render_template("auth/login.html")
 
