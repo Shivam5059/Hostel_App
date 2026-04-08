@@ -1,0 +1,6 @@
+﻿Analyzing hostel_frontend...                                    
+
+   info - The private field _attendanceStateMap could be 'final' - lib\screens\features\attendance_view.dart:22:18 - prefer_final_fields
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\screens\features\attendance_view.dart:209:21 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\screens\features\complaints_view.dart:53:38 - use_build_context_synchronously
+
