@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Complaints – Hostel Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Complaints</h2>
+    <a href="{{ url_for('complaints.new_complaint') }}" class="btn btn-primary"><i class="bi bi-plus"></i> New Complaint</a>
+</div>
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Category</th>
+                {% if current_user.role in ('admin', 'warden') %}<th>Student</th>{% endif %}
+                <th>Status</th>
+                <th>Date</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in complaints %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ c.title }}</td>
+                <td class="text-capitalize">{{ c.category }}</td>
+                {% if current_user.role in ('admin', 'warden') %}
+                <td>{{ c.student.full_name }}</td>
+                {% endif %}
+                <td>
+                    <span class="badge
+                        {% if c.status == 'resolved' %}bg-success
+                        {% elif c.status == 'in_progress' %}bg-warning text-dark
+                        {% else %}bg-secondary{% endif %}">
+                        {{ c.status.replace('_', ' ') }}
+                    </span>
+                </td>
+                <td><small>{{ c.created_at.strftime('%d %b %Y') }}</small></td>
+                <td><a href="{{ url_for('complaints.view_complaint', complaint_id=c.id) }}" class="btn btn-sm btn-outline-info">View</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted">No complaints found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

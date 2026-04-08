@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Add Fee – Hostel Manager{% endblock %}
+{% block content %}
+<h2 class="mb-4">Add Fee Record</h2>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Student <span class="text-danger">*</span></label>
+                    <select name="student_id" class="form-select" required>
+                        <option value="">— Select Student —</option>
+                        {% for s in students %}
+                        <option value="{{ s.id }}">{{ s.full_name }} ({{ s.student_id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Fee Type</label>
+                    <select name="fee_type" class="form-select">
+                        <option value="monthly">Monthly</option>
+                        <option value="annual">Annual</option>
+                        <option value="security_deposit">Security Deposit</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Amount (₹) <span class="text-danger">*</span></label>
+                    <input type="number" name="amount" class="form-control" min="0" step="0.01" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Month / Period</label>
+                    <input type="text" name="month" class="form-control" placeholder="e.g. April 2025">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" name="due_date" class="form-control">
+                </div>
+            </div>
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-warning">Add Fee</button>
+                <a href="{{ url_for('fees.list_fees') }}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

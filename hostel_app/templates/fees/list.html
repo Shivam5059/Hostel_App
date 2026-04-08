@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Fees – Hostel Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Fee Records</h2>
+    {% if current_user.role in ('admin', 'warden') %}
+    <a href="{{ url_for('fees.add_fee') }}" class="btn btn-warning"><i class="bi bi-plus-circle"></i> Add Fee</a>
+    {% endif %}
+</div>
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                {% if current_user.role in ('admin', 'warden') %}<th>Student</th>{% endif %}
+                <th>Type</th>
+                <th>Month / Period</th>
+                <th>Amount (₹)</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                {% if current_user.role in ('admin', 'warden') %}<th>Actions</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in fees %}
+            <tr>
+                {% if current_user.role in ('admin', 'warden') %}
+                <td>{{ f.student.full_name }}</td>
+                {% endif %}
+                <td class="text-capitalize">{{ f.fee_type.replace('_', ' ') }}</td>
+                <td>{{ f.month or '—' }}</td>
+                <td>{{ f.amount }}</td>
+                <td>{{ f.due_date or '—' }}</td>
+                <td>
+                    <span class="badge
+                        {% if f.status == 'paid' %}bg-success
+                        {% elif f.status == 'overdue' %}bg-danger
+                        {% else %}bg-warning text-dark{% endif %}">
+                        {{ f.status }}
+                    </span>
+                </td>
+                {% if current_user.role in ('admin', 'warden') %}
+                <td class="d-flex gap-1">
+                    {% if f.status != 'paid' %}
+                    <form method="POST" action="{{ url_for('fees.mark_paid', fee_id=f.id) }}">
+                        <button class="btn btn-sm btn-success" title="Mark Paid"><i class="bi bi-check-circle"></i></button>
+                    </form>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('fees.delete_fee', fee_id=f.id) }}"
+                          onsubmit="return confirm('Delete this fee record?')">
+                        <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted">No fee records found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

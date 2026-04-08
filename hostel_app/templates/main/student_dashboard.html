@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – Hostel Manager{% endblock %}
+{% block content %}
+<h2 class="mb-3">Welcome, {{ student.full_name }}</h2>
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h6 class="card-subtitle text-muted mb-1">Student ID</h6>
+                <p class="fw-bold mb-0">{{ student.student_id }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-success">
+            <div class="card-body">
+                <h6 class="card-subtitle text-muted mb-1">Room</h6>
+                <p class="fw-bold mb-0">
+                    {% if student.room %}{{ student.room.room_number }}{% else %}Not Assigned{% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-info">
+            <div class="card-body">
+                <h6 class="card-subtitle text-muted mb-1">Course</h6>
+                <p class="fw-bold mb-0">{{ student.course or '—' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-exclamation-circle"></i> Recent Complaints</span>
+                <a href="{{ url_for('complaints.new_complaint') }}" class="btn btn-sm btn-outline-primary">+ New</a>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for c in complaints %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <a href="{{ url_for('complaints.view_complaint', complaint_id=c.id) }}">{{ c.title }}</a>
+                    <span class="badge
+                        {% if c.status == 'resolved' %}bg-success
+                        {% elif c.status == 'in_progress' %}bg-warning text-dark
+                        {% else %}bg-secondary{% endif %}">
+                        {{ c.status }}
+                    </span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No complaints yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-cash-stack"></i> Recent Fees</div>
+            <ul class="list-group list-group-flush">
+                {% for f in fees %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>{{ f.month or f.fee_type }} – ₹{{ f.amount }}</span>
+                    <span class="badge
+                        {% if f.status == 'paid' %}bg-success
+                        {% elif f.status == 'overdue' %}bg-danger
+                        {% else %}bg-warning text-dark{% endif %}">
+                        {{ f.status }}
+                    </span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No fee records.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-calendar-check"></i> Recent Leaves</span>
+                <a href="{{ url_for('leaves.apply_leave') }}" class="btn btn-sm btn-outline-primary">+ Apply</a>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for l in leaves %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>{{ l.from_date }} → {{ l.to_date }}</span>
+                    <span class="badge
+                        {% if l.status == 'approved' %}bg-success
+                        {% elif l.status == 'rejected' %}bg-danger
+                        {% else %}bg-warning text-dark{% endif %}">
+                        {{ l.status }}
+                    </span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No leave applications.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

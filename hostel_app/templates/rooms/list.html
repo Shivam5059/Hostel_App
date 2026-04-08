@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Rooms – Hostel Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Rooms</h2>
+    <a href="{{ url_for('rooms.add_room') }}" class="btn btn-success"><i class="bi bi-plus-square"></i> Add Room</a>
+</div>
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Room No.</th>
+                <th>Type</th>
+                <th>Floor</th>
+                <th>Capacity</th>
+                <th>Occupancy</th>
+                <th>Monthly Fee (₹)</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for room in rooms %}
+            <tr>
+                <td>{{ room.room_number }}</td>
+                <td class="text-capitalize">{{ room.room_type }}</td>
+                <td>{{ room.floor }}</td>
+                <td>{{ room.capacity }}</td>
+                <td>{{ room.occupancy }} / {{ room.capacity }}</td>
+                <td>{{ room.monthly_fee }}</td>
+                <td>
+                    <span class="badge {% if room.is_available %}bg-success{% else %}bg-secondary{% endif %}">
+                        {% if room.is_available %}Available{% else %}Full{% endif %}
+                    </span>
+                </td>
+                <td>
+                    <a href="{{ url_for('rooms.view_room', room_id=room.id) }}" class="btn btn-sm btn-outline-info" title="View"><i class="bi bi-eye"></i></a>
+                    <a href="{{ url_for('rooms.edit_room', room_id=room.id) }}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i></a>
+                    <form method="POST" action="{{ url_for('rooms.delete_room', room_id=room.id) }}" class="d-inline"
+                          onsubmit="return confirm('Delete room {{ room.room_number }}?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted">No rooms found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

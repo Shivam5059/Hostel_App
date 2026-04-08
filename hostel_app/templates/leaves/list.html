@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Leave Applications – Hostel Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Leave Applications</h2>
+    <a href="{{ url_for('leaves.apply_leave') }}" class="btn btn-info text-white"><i class="bi bi-plus"></i> Apply Leave</a>
+</div>
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                {% if current_user.role in ('admin', 'warden') %}<th>Student</th>{% endif %}
+                <th>From</th>
+                <th>To</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Applied</th>
+                {% if current_user.role in ('admin', 'warden') %}<th>Actions</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in leaves %}
+            <tr>
+                {% if current_user.role in ('admin', 'warden') %}
+                <td>{{ l.student.full_name }}</td>
+                {% endif %}
+                <td>{{ l.from_date }}</td>
+                <td>{{ l.to_date }}</td>
+                <td>{{ l.reason[:60] }}{% if l.reason|length > 60 %}…{% endif %}</td>
+                <td>
+                    <span class="badge
+                        {% if l.status == 'approved' %}bg-success
+                        {% elif l.status == 'rejected' %}bg-danger
+                        {% else %}bg-warning text-dark{% endif %}">
+                        {{ l.status }}
+                    </span>
+                </td>
+                <td><small>{{ l.created_at.strftime('%d %b %Y') }}</small></td>
+                {% if current_user.role in ('admin', 'warden') and l.status == 'pending' %}
+                <td>
+                    <form method="POST" action="{{ url_for('leaves.review_leave', leave_id=l.id) }}" class="d-inline">
+                        <input type="hidden" name="action" value="approved">
+                        <button class="btn btn-sm btn-success" title="Approve"><i class="bi bi-check"></i></button>
+                    </form>
+                    <form method="POST" action="{{ url_for('leaves.review_leave', leave_id=l.id) }}" class="d-inline">
+                        <input type="hidden" name="action" value="rejected">
+                        <button class="btn btn-sm btn-danger" title="Reject"><i class="bi bi-x"></i></button>
+                    </form>
+                </td>
+                {% elif current_user.role in ('admin', 'warden') %}
+                <td><span class="text-muted">—</span></td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted">No leave applications.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard – Hostel Manager{% endblock %}
+{% block content %}
+<h2 class="mb-4">Admin Dashboard</h2>
+<div class="row g-4">
+    <div class="col-sm-6 col-xl-4">
+        <div class="card text-bg-primary shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <i class="bi bi-people-fill fs-1"></i>
+                <div>
+                    <div class="fs-2 fw-bold">{{ total_students }}</div>
+                    <div>Total Students</div>
+                </div>
+            </div>
+            <div class="card-footer"><a href="{{ url_for('students.list_students') }}" class="text-white">View all &rarr;</a></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-4">
+        <div class="card text-bg-success shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <i class="bi bi-door-open-fill fs-1"></i>
+                <div>
+                    <div class="fs-2 fw-bold">{{ available_rooms }} / {{ total_rooms }}</div>
+                    <div>Available / Total Rooms</div>
+                </div>
+            </div>
+            <div class="card-footer"><a href="{{ url_for('rooms.list_rooms') }}" class="text-white">View all &rarr;</a></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-4">
+        <div class="card text-bg-warning shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <i class="bi bi-exclamation-triangle-fill fs-1"></i>
+                <div>
+                    <div class="fs-2 fw-bold">{{ pending_complaints }}</div>
+                    <div>Pending Complaints</div>
+                </div>
+            </div>
+            <div class="card-footer"><a href="{{ url_for('complaints.list_complaints') }}" class="text-white">View all &rarr;</a></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-4">
+        <div class="card text-bg-danger shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <i class="bi bi-cash-stack fs-1"></i>
+                <div>
+                    <div class="fs-2 fw-bold">{{ pending_fees }}</div>
+                    <div>Pending Fee Records</div>
+                </div>
+            </div>
+            <div class="card-footer"><a href="{{ url_for('fees.list_fees') }}" class="text-white">View all &rarr;</a></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-4">
+        <div class="card text-bg-info shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <i class="bi bi-calendar-check-fill fs-1"></i>
+                <div>
+                    <div class="fs-2 fw-bold">{{ pending_leaves }}</div>
+                    <div>Pending Leave Applications</div>
+                </div>
+            </div>
+            <div class="card-footer"><a href="{{ url_for('leaves.list_leaves') }}" class="text-white">View all &rarr;</a></div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('students.add_student') }}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Add Student</a>
+    <a href="{{ url_for('rooms.add_room') }}" class="btn btn-success"><i class="bi bi-plus-square"></i> Add Room</a>
+    <a href="{{ url_for('fees.add_fee') }}" class="btn btn-warning"><i class="bi bi-plus-circle"></i> Add Fee</a>
+</div>
+{% endblock %}

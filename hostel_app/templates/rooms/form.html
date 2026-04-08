@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Room – Hostel Manager{% endblock %}
+{% block content %}
+<h2 class="mb-4">{{ action }} Room</h2>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Room Number <span class="text-danger">*</span></label>
+                    <input type="text" name="room_number" class="form-control"
+                           value="{{ room.room_number if room else '' }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Room Type <span class="text-danger">*</span></label>
+                    <select name="room_type" class="form-select" required>
+                        {% for t in ['single', 'double', 'triple'] %}
+                        <option value="{{ t }}" {% if room and room.room_type == t %}selected{% endif %}>
+                            {{ t.capitalize() }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Capacity</label>
+                    <input type="number" name="capacity" class="form-control" min="1" max="10"
+                           value="{{ room.capacity if room else '1' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Floor</label>
+                    <input type="number" name="floor" class="form-control" min="0"
+                           value="{{ room.floor if room else '1' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Monthly Fee (₹)</label>
+                    <input type="number" name="monthly_fee" class="form-control" min="0" step="0.01"
+                           value="{{ room.monthly_fee if room else '0' }}">
+                </div>
+            </div>
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">{{ action }} Room</button>
+                <a href="{{ url_for('rooms.list_rooms') }}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Create Profile – Hostel Manager{% endblock %}
+{% block content %}
+<h2 class="mb-4">Create Your Student Profile</h2>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Student ID <span class="text-danger">*</span></label>
+                    <input type="text" name="student_id" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                    <input type="text" name="full_name" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Phone</label>
+                    <input type="text" name="phone" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Course</label>
+                    <input type="text" name="course" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Year</label>
+                    <input type="number" name="year" class="form-control" min="1" max="6" value="1">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Address</label>
+                    <textarea name="address" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Create Profile</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

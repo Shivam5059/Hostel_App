@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Complete Profile – Hostel Manager{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Your account needs a student profile to continue.
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('students.create_profile') }}" class="btn btn-primary">Create My Profile</a>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-secondary">Logout</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
