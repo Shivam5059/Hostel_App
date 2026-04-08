@@ -131,7 +131,7 @@ class ApiManager {
   static Future<List<dynamic>> fetchAssignedStudents() async {
     final role = UserSession.role?.toLowerCase() ?? '';
     // Maps perfectly to both Counselor and Warden endpoints since patterns match!
-    if (role == 'counselor' || role == 'warden') {
+    if (role == 'counselor' || role == 'warden' || role == 'parent') {
       return _getList('/$role/${UserSession.userId}/students');
     }
     return [];

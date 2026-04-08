@@ -265,6 +265,18 @@ def get_warden_students(warden_id):
     """
     return jsonify(query_db(query, [warden_id]))
 
+@app.route("/api/parent/<int:parent_id>/students", methods=["GET"])
+def get_parent_students(parent_id):
+    query = """
+        SELECT s.student_id, s.roll_no, u.name, u.email, h.hostel_name, r.room_number
+        FROM student s
+        JOIN "user" u ON s.user_id = u.user_id
+        LEFT JOIN room r ON s.room_id = r.room_id
+        LEFT JOIN hostel h ON r.hostel_id = h.hostel_id
+        WHERE s.parent_id = ?
+    """
+    return jsonify(query_db(query, [parent_id]))
+
 # ==========================================
 # ATTENDANCE SYSTEM
 # ==========================================

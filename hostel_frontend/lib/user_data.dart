@@ -14,11 +14,7 @@ class RoleFunction {
   final IconData icon;
   final Widget page;
 
-  RoleFunction({
-    required this.title,
-    required this.icon,
-    required this.page,
-  });
+  RoleFunction({required this.title, required this.icon, required this.page});
 }
 
 class UserSession {
@@ -28,7 +24,8 @@ class UserSession {
   static String? rollNo; // For STUDENT roll no lookup
   static String? name;
   static String? email;
-  static String? role; // e.g. "STUDENT", "PARENT", "WARDEN", "COUNSELOR", "RECTOR"
+  static String?
+  role; // e.g. "STUDENT", "PARENT", "WARDEN", "COUNSELOR", "RECTOR"
   static String? phone;
   static String? roomNumber;
   static String? hostelName;
@@ -80,47 +77,163 @@ class UserSession {
     switch (role) {
       case 'STUDENT':
         return [
-          RoleFunction(title: 'Peers', icon: Icons.group_outlined, page: const StudentsView()),
-          RoleFunction(title: 'Leaves', icon: Icons.event_busy_outlined, page: const LeavesView()),
-          RoleFunction(title: 'Complaints', icon: Icons.report_problem_outlined, page: const ComplaintsView()),
-          RoleFunction(title: 'Room Transfer', icon: Icons.swap_horiz_outlined, page: const RoomTransferView()),
-          RoleFunction(title: 'Food Menu', icon: Icons.restaurant_menu_outlined, page: const MenuView()),
-          RoleFunction(title: 'Profile', icon: Icons.person_outline, page: const ProfileView()),
+          RoleFunction(
+            title: 'Peers',
+            icon: Icons.group_outlined,
+            page: const StudentsView(),
+          ),
+          RoleFunction(
+            title: 'Leaves',
+            icon: Icons.event_busy_outlined,
+            page: const LeavesView(),
+          ),
+          RoleFunction(
+            title: 'Complaints',
+            icon: Icons.report_problem_outlined,
+            page: const ComplaintsView(),
+          ),
+          RoleFunction(
+            title: 'Room Transfer',
+            icon: Icons.swap_horiz_outlined,
+            page: const RoomTransferView(),
+          ),
+          RoleFunction(
+            title: 'Food Menu',
+            icon: Icons.restaurant_menu_outlined,
+            page: const MenuView(),
+          ),
+          RoleFunction(
+            title: 'Profile',
+            icon: Icons.person_outline,
+            page: const ProfileView(),
+          ),
         ];
       case 'PARENT':
         return [
-          RoleFunction(title: 'Attendance', icon: Icons.assignment_turned_in_outlined, page: const AttendanceView()),
-          RoleFunction(title: 'Leaves', icon: Icons.event_busy_outlined, page: const LeavesView()),
-          RoleFunction(title: 'Food Menu', icon: Icons.restaurant_menu_outlined, page: const MenuView()),
-          RoleFunction(title: 'Profile', icon: Icons.person_outline, page: const ProfileView()),
+          RoleFunction(
+            title: 'Students',
+            icon: Icons.group_outlined,
+            page: const StudentsView(),
+          ),
+          RoleFunction(
+            title: 'Leaves',
+            icon: Icons.event_busy_outlined,
+            page: const LeavesView(),
+          ),
+          RoleFunction(
+            title: 'Food Menu',
+            icon: Icons.restaurant_menu_outlined,
+            page: const MenuView(),
+          ),
+          RoleFunction(
+            title: 'Profile',
+            icon: Icons.person_outline,
+            page: const ProfileView(),
+          ),
         ];
       case 'WARDEN':
         return [
-          RoleFunction(title: 'Students', icon: Icons.group_outlined, page: const StudentsView()),
-          RoleFunction(title: 'Attendance', icon: Icons.assignment_turned_in_outlined, page: const AttendanceView()),
-          RoleFunction(title: 'Leaves', icon: Icons.event_busy_outlined, page: const LeavesView()),
-          RoleFunction(title: 'Room Transfer', icon: Icons.swap_horiz_outlined, page: const RoomTransferView()),
-          RoleFunction(title: 'Food Menu', icon: Icons.restaurant_menu_outlined, page: const MenuView()),
-          RoleFunction(title: 'Profile', icon: Icons.person_outline, page: const ProfileView()),
+          RoleFunction(
+            title: 'Students',
+            icon: Icons.group_outlined,
+            page: const StudentsView(),
+          ),
+          RoleFunction(
+            title: 'Attendance',
+            icon: Icons.assignment_turned_in_outlined,
+            page: const AttendanceView(),
+          ),
+          RoleFunction(
+            title: 'Leaves',
+            icon: Icons.event_busy_outlined,
+            page: const LeavesView(),
+          ),
+          RoleFunction(
+            title: 'Room Transfer',
+            icon: Icons.swap_horiz_outlined,
+            page: const RoomTransferView(),
+          ),
+          RoleFunction(
+            title: 'Food Menu',
+            icon: Icons.restaurant_menu_outlined,
+            page: const MenuView(),
+          ),
+          RoleFunction(
+            title: 'Profile',
+            icon: Icons.person_outline,
+            page: const ProfileView(),
+          ),
         ];
       case 'COUNSELOR':
         return [
-          RoleFunction(title: 'Students', icon: Icons.group_outlined, page: const StudentsView()),
-          RoleFunction(title: 'Leaves', icon: Icons.event_busy_outlined, page: const LeavesView()),
-          RoleFunction(title: 'Food Menu', icon: Icons.restaurant_menu_outlined, page: const MenuView()),
-          RoleFunction(title: 'Profile', icon: Icons.person_outline, page: const ProfileView()),
+          RoleFunction(
+            title: 'Students',
+            icon: Icons.group_outlined,
+            page: const StudentsView(),
+          ),
+          RoleFunction(
+            title: 'Leaves',
+            icon: Icons.event_busy_outlined,
+            page: const LeavesView(),
+          ),
+          RoleFunction(
+            title: 'Food Menu',
+            icon: Icons.restaurant_menu_outlined,
+            page: const MenuView(),
+          ),
+          RoleFunction(
+            title: 'Profile',
+            icon: Icons.person_outline,
+            page: const ProfileView(),
+          ),
         ];
       case 'RECTOR':
         return [
-          RoleFunction(title: 'Students', icon: Icons.group_outlined, page: const StudentsView()),
-          RoleFunction(title: 'New Students', icon: Icons.person_search_outlined, page: const NewStudentsView()),
-          RoleFunction(title: 'New Admission', icon: Icons.how_to_reg_outlined, page: const NewAdmissionView()),
-          RoleFunction(title: 'Attendance', icon: Icons.assignment_turned_in_outlined, page: const AttendanceView()),
-          RoleFunction(title: 'Leaves', icon: Icons.event_busy_outlined, page: const LeavesView()),
-          RoleFunction(title: 'Complaints', icon: Icons.report_problem_outlined, page: const ComplaintsView()),
-          RoleFunction(title: 'Food Menu', icon: Icons.restaurant_menu_outlined, page: const MenuView()),
-          RoleFunction(title: 'Edit Menu', icon: Icons.edit_calendar_outlined, page: const MenuEditView()),
-          RoleFunction(title: 'Profile', icon: Icons.person_outline, page: const ProfileView()),
+          RoleFunction(
+            title: 'Students',
+            icon: Icons.group_outlined,
+            page: const StudentsView(),
+          ),
+          RoleFunction(
+            title: 'New Students',
+            icon: Icons.person_search_outlined,
+            page: const NewStudentsView(),
+          ),
+          RoleFunction(
+            title: 'New Admission',
+            icon: Icons.how_to_reg_outlined,
+            page: const NewAdmissionView(),
+          ),
+          RoleFunction(
+            title: 'Attendance',
+            icon: Icons.assignment_turned_in_outlined,
+            page: const AttendanceView(),
+          ),
+          RoleFunction(
+            title: 'Leaves',
+            icon: Icons.event_busy_outlined,
+            page: const LeavesView(),
+          ),
+          RoleFunction(
+            title: 'Complaints',
+            icon: Icons.report_problem_outlined,
+            page: const ComplaintsView(),
+          ),
+          RoleFunction(
+            title: 'Food Menu',
+            icon: Icons.restaurant_menu_outlined,
+            page: const MenuView(),
+          ),
+          RoleFunction(
+            title: 'Edit Menu',
+            icon: Icons.edit_calendar_outlined,
+            page: const MenuEditView(),
+          ),
+          RoleFunction(
+            title: 'Profile',
+            icon: Icons.person_outline,
+            page: const ProfileView(),
+          ),
         ];
       default:
         return [];
