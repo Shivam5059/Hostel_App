@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/features/students_view.dart';
 import 'screens/features/leaves_view.dart';
 import 'screens/features/attendance_view.dart';
@@ -30,7 +31,7 @@ class UserSession {
   static String? roomNumber;
   static String? hostelName;
 
-  static void login({
+  static Future<void> login({
     required int loginUserId,
     required String loginName,
     required String loginRole,
@@ -38,7 +39,7 @@ class UserSession {
     String? loginRollNo,
     String? loginEmail,
     String? loginPhone,
-  }) {
+  }) async {
     userId = loginUserId;
     name = loginName;
     role = loginRole;
@@ -46,9 +47,47 @@ class UserSession {
     rollNo = loginRollNo;
     email = loginEmail;
     phone = loginPhone;
+    await saveSession();
   }
 
-  static void updateFromMap(Map<String, dynamic> data) {
+  static Future<void> saveSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    Future<void> sync(String key, dynamic value) async {
+      if (value == null) {
+        await prefs.remove(key);
+      } else if (value is int) {
+        await prefs.setInt(key, value);
+      } else if (value is String) {
+        await prefs.setString(key, value);
+      }
+    }
+
+    await sync('user_id', userId);
+    await sync('student_id', studentId);
+    await sync('roll_no', rollNo);
+    await sync('name', name);
+    await sync('email', email);
+    await sync('role', role);
+    await sync('phone', phone);
+    await sync('room_number', roomNumber);
+    await sync('hostel_name', hostelName);
+  }
+
+  static Future<void> initFromStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    userId = prefs.getInt('user_id');
+    studentId = prefs.getInt('student_id');
+    rollNo = prefs.getString('roll_no');
+    name = prefs.getString('name');
+    email = prefs.getString('email');
+    role = prefs.getString('role');
+    phone = prefs.getString('phone');
+    roomNumber = prefs.getString('room_number');
+    hostelName = prefs.getString('hostel_name');
+  }
+
+  static Future<void> updateFromMap(Map<String, dynamic> data) async {
     userId = data['user_id'] as int?;
     name = data['name'] as String?;
     email = data['email'] as String?;
@@ -58,9 +97,10 @@ class UserSession {
     studentId = data['student_id'] as int?;
     roomNumber = data['room_number']?.toString();
     hostelName = data['hostel_name'] as String?;
+    await saveSession();
   }
 
-  static void logout() {
+  static Future<void> logout() async {
     userId = null;
     studentId = null;
     rollNo = null;
@@ -70,6 +110,8 @@ class UserSession {
     role = null;
     roomNumber = null;
     hostelName = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
   }
 
   // Define static mappings for each role explicitly without 'Overview'

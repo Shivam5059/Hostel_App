@@ -43,12 +43,14 @@ class ApiManager {
           }
         }
 
-        UserSession.login(
+        await UserSession.login(
           loginUserId: userId,
           loginName: data['user']['name'],
           loginRole: role,
           loginStudentId: studentId,
           loginRollNo: rollNo,
+          loginEmail: email,
+          loginPhone: data['user']['phone'],
         );
 
         return {'success': true, 'data': data};
@@ -67,20 +69,20 @@ class ApiManager {
     String email,
     String otp,
   ) async {
-    return _postWithMessage(
-      '/auth/forgot-password/send',
-      {'email': email, 'otp': otp},
-    );
+    return _postWithMessage('/auth/forgot-password/send', {
+      'email': email,
+      'otp': otp,
+    });
   }
 
   static Future<(bool, String?)> resetPassword(
     String email,
     String newPassword,
   ) async {
-    return _postWithMessage(
-      '/auth/forgot-password/reset',
-      {'email': email, 'new_password': newPassword},
-    );
+    return _postWithMessage('/auth/forgot-password/reset', {
+      'email': email,
+      'new_password': newPassword,
+    });
   }
 
   // --- Generic Helpers for code reduction ---
@@ -106,6 +108,17 @@ class ApiManager {
         Uri.parse('$baseUrl$endpoint'),
         headers: _headers,
         body: body != null ? jsonEncode(body) : null,
+      );
+      return res.statusCode == 200;
+    } catch (_) {}
+    return false;
+  }
+
+  static Future<bool> _deleteStatus(String endpoint) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
       );
       return res.statusCode == 200;
     } catch (_) {}
@@ -468,8 +481,16 @@ class ApiManager {
     int userId, {
     required String name,
     String? phone,
-  }) => _putWithMessage('/user/$userId', {'name': name, 'phone': phone});
+  }) async {
+    return _putWithMessage(
+      '/user/$userId',
+      {'name': name, 'phone': phone},
+    );
+  }
 
+  static Future<bool> deleteStudent(int studentId) async {
+    return _deleteStatus('/rector/remove-student/$studentId');
+  }
   static Future<(bool, String?)> updatePassword(
     int userId,
     String oldPassword,

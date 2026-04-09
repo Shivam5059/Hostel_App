@@ -33,9 +33,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     final result = await ApiManager.login(email, password);
-    
+
     if (!mounted) return;
-    
+
     setState(() => _isLoading = false);
 
     if (result['success'] == true) {
@@ -53,7 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFE0E7FF), Color(0xFFF3E8FF)], // Light Indigo to Purple
+            colors: [
+              Color(0xFFE0E7FF),
+              Color(0xFFF3E8FF),
+            ], // Light Indigo to Purple
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -64,26 +67,44 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Card(
               elevation: 8,
               shadowColor: AppTheme.primaryColor.withValues(alpha: 0.2),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 48.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32.0,
+                  vertical: 48.0,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.school_rounded, size: 64, color: AppTheme.primaryColor)
-                        .animate().scale(delay: 200.ms, duration: 400.ms, curve: Curves.easeOutBack),
+                    const Icon(
+                      Icons.school_rounded,
+                      size: 64,
+                      color: AppTheme.primaryColor,
+                    ).animate().scale(
+                      delay: 200.ms,
+                      duration: 400.ms,
+                      curve: Curves.easeOutBack,
+                    ),
                     const SizedBox(height: 16),
                     Text(
-                      'Hostel Portal',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryColor,
-                          ),
-                    ).animate().fadeIn(delay: 300.ms, duration: 400.ms).slideY(begin: 0.2),
+                          'DormNet',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor,
+                              ),
+                        )
+                        .animate()
+                        .fadeIn(delay: 300.ms, duration: 400.ms)
+                        .slideY(begin: 0.2),
                     const SizedBox(height: 8),
                     Text(
                       'Sign in to manage your activities',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondaryColor),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondaryColor,
+                      ),
                     ).animate().fadeIn(delay: 400.ms, duration: 400.ms),
                     const SizedBox(height: 48),
 
@@ -94,13 +115,26 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: BoxDecoration(
                           color: AppTheme.accentColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.accentColor.withValues(alpha: 0.5)),
+                          border: Border.all(
+                            color: AppTheme.accentColor.withValues(alpha: 0.5),
+                          ),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: AppTheme.accentColor, size: 20),
+                            const Icon(
+                              Icons.error_outline,
+                              color: AppTheme.accentColor,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(_errorMsg!, style: const TextStyle(color: AppTheme.accentColor))),
+                            Expanded(
+                              child: Text(
+                                _errorMsg!,
+                                style: const TextStyle(
+                                  color: AppTheme.accentColor,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ).animate().fadeIn().slideY(begin: -0.1),
@@ -127,23 +161,36 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: TextButton(
                         onPressed: () {
                           Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordScreen(),
+                            ),
                           );
                         },
-                        child: const Text('Forgot Password?', style: TextStyle(color: AppTheme.textSecondaryColor)),
+                        child: const Text(
+                          'Forgot Password?',
+                          style: TextStyle(color: AppTheme.textSecondaryColor),
+                        ),
                       ),
                     ).animate().fadeIn(delay: 650.ms),
                     const SizedBox(height: 24),
                     SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _handleLogin,
-                        child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Sign In', style: TextStyle(fontSize: 18)),
-                      ),
-                    ).animate().fadeIn(delay: 700.ms).scale(begin: const Offset(0.95, 0.95)),
+                          width: double.infinity,
+                          height: 54,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _handleLogin,
+                            child: _isLoading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                : const Text(
+                                    'Sign In',
+                                    style: TextStyle(fontSize: 18),
+                                  ),
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(delay: 700.ms)
+                        .scale(begin: const Offset(0.95, 0.95)),
                   ],
                 ),
               ),

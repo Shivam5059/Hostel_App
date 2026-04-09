@@ -40,11 +40,13 @@ class _ProfileViewState extends State<ProfileView> {
     final data = await ApiManager.fetchUserProfile(UserSession.userId!);
     if (mounted) setState(() => _loading = false);
     if (data != null) {
-      setState(() {
-        UserSession.updateFromMap(data);
-        _nameController.text = UserSession.name ?? '';
-        _phoneController.text = UserSession.phone ?? '';
-      });
+      await UserSession.updateFromMap(data);
+      if (mounted) {
+        setState(() {
+          _nameController.text = UserSession.name ?? '';
+          _phoneController.text = UserSession.phone ?? '';
+        });
+      }
     }
   }
 
@@ -306,12 +308,14 @@ class _ProfileViewState extends State<ProfileView> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton.icon(
-                onPressed: () {
-                   UserSession.logout();
-                   Navigator.of(context).pushAndRemoveUntil(
-                     MaterialPageRoute(builder: (_) => const LoginScreen()),
-                     (route) => false,
-                   );
+                onPressed: () async {
+                   await UserSession.logout();
+                   if (context.mounted) {
+                     Navigator.of(context).pushAndRemoveUntil(
+                       MaterialPageRoute(builder: (_) => const LoginScreen()),
+                       (route) => false,
+                     );
+                   }
                 },
                 icon: const Icon(Icons.logout_rounded),
                 label: const Text('Sign Out', style: TextStyle(fontSize: 18)),

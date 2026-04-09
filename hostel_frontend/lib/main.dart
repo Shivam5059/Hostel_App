@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/base_dashboard.dart';
+import 'user_data.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await UserSession.initFromStorage();
   runApp(const HostelApp());
 }
 
@@ -15,7 +19,9 @@ class HostelApp extends StatelessWidget {
       title: 'Hostel Management',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const LoginScreen(),
+      home: UserSession.userId != null 
+          ? const BaseDashboard() 
+          : const LoginScreen(),
     );
   }
 }

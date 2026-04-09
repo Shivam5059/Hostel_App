@@ -49,11 +49,43 @@ class _StudentDetailsViewState extends State<StudentDetailsView> {
       if (ok) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Student released successfully'), backgroundColor: Colors.green));
-          Navigator.pop(context); // Go back as the student is no longer "mine"
+          Navigator.pop(context);
         }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to release student')));
+        }
+      }
+    }
+  }
+
+  Future<void> _removeStudent() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Permanently Remove Student', style: TextStyle(color: Colors.red)),
+        content: const Text('This action is IRREVERSIBLE. All attendance history, complaints, and account data for this student will be permanently deleted.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final ok = await ApiManager.deleteStudent(widget.studentId);
+      if (ok) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Student removed successfully'), backgroundColor: Colors.red));
+          Navigator.pop(context); // Go back to student list
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to remove student')));
         }
       }
     }
@@ -191,6 +223,25 @@ class _StudentDetailsViewState extends State<StudentDetailsView> {
                     'This student will be moved back to the unassigned list.',
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ).animate().fadeIn(delay: 700.ms),
+                ],
+
+                if (UserSession.role == 'RECTOR') ...[
+                  const SizedBox(height: 48),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: _removeStudent,
+                      icon: const Icon(Icons.delete_forever_rounded),
+                      label: const Text('Remove Student Permanently', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade700,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                  ).animate().fadeIn(delay: 600.ms),
                 ],
                 const SizedBox(height: 40),
               ],
