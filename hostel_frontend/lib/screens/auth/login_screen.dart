@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../api_calls.dart';
 import '../base_dashboard.dart';
 import '../../theme.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -121,7 +122,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       obscureText: true,
                     ).animate().fadeIn(delay: 600.ms).slideX(begin: 0.1),
-                    const SizedBox(height: 32),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                          );
+                        },
+                        child: const Text('Forgot Password?', style: TextStyle(color: AppTheme.textSecondaryColor)),
+                      ),
+                    ).animate().fadeIn(delay: 650.ms),
+                    const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       height: 54,

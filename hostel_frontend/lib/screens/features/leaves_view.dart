@@ -3,6 +3,7 @@ import '../../api_calls.dart';
 import '../../user_data.dart';
 import '../../theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
 
 class LeavesView extends StatefulWidget {
   const LeavesView({super.key});
@@ -35,7 +36,32 @@ class _LeavesViewState extends State<LeavesView> with SingleTickerProviderStateM
     final reasonCtrl = TextEditingController();
     final fromCtrl = TextEditingController();
     final toCtrl = TextEditingController();
+    DateTime? fromDateTime;
+    DateTime? toDateTime;
     bool isSubmitting = false;
+
+    // Helper to format date & time for display or backend
+    String formatDateTime(DateTime dt) => DateFormat('yyyy-MM-dd HH:mm').format(dt);
+
+    // Helper to pick both date and time
+    Future<DateTime?> pickDateTime(DateTime initialDate, DateTime firstDate) async {
+      final date = await showDatePicker(
+        context: context,
+        initialDate: initialDate,
+        firstDate: firstDate,
+        lastDate: DateTime.now().add(const Duration(days: 365)),
+      );
+      if (date == null) return null;
+
+      if (!mounted) return null;
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(initialDate),
+      );
+      if (time == null) return null;
+
+      return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    }
 
     showDialog(
       context: context,
@@ -49,21 +75,79 @@ class _LeavesViewState extends State<LeavesView> with SingleTickerProviderStateM
               children: [
                 TextField(
                   controller: fromCtrl, 
+                  readOnly: true,
                   enabled: !isSubmitting,
-                  decoration: const InputDecoration(labelText: 'From Date (YYYY-MM-DD)', hintText: '2023-10-25')
+                  onTap: () async {
+                    final now = DateTime.now();
+                    // Initial = tomorrow if we want, but allow today
+                    final initial = fromDateTime ?? now.add(const Duration(hours: 1));
+                    final picked = await pickDateTime(initial, now);
+                    
+                    if (picked != null) {
+                      if (picked.isBefore(now)) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select a future time'), backgroundColor: AppTheme.accentColor)
+                        );
+                        return;
+                      }
+                      setDialogState(() {
+                        fromDateTime = picked;
+                        fromCtrl.text = formatDateTime(picked);
+                        // Reset 'To' if it's now before 'From'
+                        if (toDateTime != null && toDateTime!.isBefore(fromDateTime!)) {
+                          toDateTime = null;
+                          toCtrl.clear();
+                        }
+                      });
+                    }
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'From Date & Time', 
+                    hintText: 'Select start',
+                    prefixIcon: Icon(Icons.access_time, size: 20),
+                  )
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: toCtrl, 
-                  enabled: !isSubmitting,
-                  decoration: const InputDecoration(labelText: 'To Date (YYYY-MM-DD)', hintText: '2023-10-27')
+                  readOnly: true,
+                  enabled: !isSubmitting && fromDateTime != null,
+                  onTap: () async {
+                    if (fromDateTime == null) return;
+                    final initial = toDateTime ?? fromDateTime!.add(const Duration(hours: 2));
+                    final picked = await pickDateTime(initial, fromDateTime!);
+                    
+                    if (picked != null) {
+                      if (picked.isBefore(fromDateTime!)) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('To time must be after From time'), backgroundColor: AppTheme.accentColor)
+                        );
+                        return;
+                      }
+                      setDialogState(() {
+                        toDateTime = picked;
+                        toCtrl.text = formatDateTime(picked);
+                      });
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'To Date & Time', 
+                    hintText: fromDateTime == null ? 'Select "From" first' : 'Select end',
+                    prefixIcon: const Icon(Icons.timer_outlined, size: 20),
+                  )
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: reasonCtrl, 
                   maxLines: 2, 
                   enabled: !isSubmitting,
-                  decoration: const InputDecoration(labelText: 'Reason', hintText: 'Family event...')
+                  decoration: const InputDecoration(
+                    labelText: 'Reason', 
+                    hintText: 'Going home, function...',
+                    prefixIcon: Icon(Icons.edit_note),
+                  )
                 ),
               ],
             )
@@ -75,13 +159,17 @@ class _LeavesViewState extends State<LeavesView> with SingleTickerProviderStateM
             ),
             ElevatedButton(
               onPressed: isSubmitting ? null : () async {
-                if (reasonCtrl.text.isEmpty || fromCtrl.text.isEmpty || toCtrl.text.isEmpty) {
+                if (reasonCtrl.text.isEmpty || fromDateTime == null || toDateTime == null) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
                   return;
                 }
                 
                 setDialogState(() => isSubmitting = true);
-                final ok = await ApiManager.submitLeaveRequest(fromCtrl.text, toCtrl.text, reasonCtrl.text);
+                final ok = await ApiManager.submitLeaveRequest(
+                  formatDateTime(fromDateTime!), 
+                  formatDateTime(toDateTime!), 
+                  reasonCtrl.text
+                );
                 
                 if (!mounted) return;
                 
@@ -95,7 +183,7 @@ class _LeavesViewState extends State<LeavesView> with SingleTickerProviderStateM
                 } else {
                   setDialogState(() => isSubmitting = false);
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Failed to submit request. Check date format.'),
+                    content: Text('Failed to submit request.'),
                     backgroundColor: AppTheme.accentColor,
                   ));
                 }

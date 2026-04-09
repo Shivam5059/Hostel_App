@@ -1,10 +1,47 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_mail import Mail, Message
+from dotenv import load_dotenv
 import bcrypt
+import os
 from db import query_db, execute_db, execute_many_db, get_db_connection
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# ==========================================
+# FLASK-MAIL CONFIG
+# ==========================================
+app.config['MAIL_SERVER']   = 'smtp.gmail.com'
+app.config['MAIL_PORT']     = 465
+app.config['MAIL_USE_SSL']  = True
+app.config['MAIL_USERNAME'] = os.getenv('SMTP_EMAIL')   # dormnet0@gmail.com
+app.config['MAIL_PASSWORD'] = os.getenv('SMTP_PASSWORD')        # isodnoufwiyaqsal
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('SMTP_EMAIL')     # dormnet0@gmail.com
+mail = Mail(app)
+
+# ==========================================
+# EMAIL UTILITY
+# ==========================================
+def send_email(receiver, content):
+    """
+    Send a plain-text email to any receiver using Flask-Mail.
+    Credentials are loaded from SMTP_EMAIL / SMTP_PASSWORD in .env.
+    Returns True on success, False on failure.
+    """
+    try:
+        msg = Message(
+            subject="Hostel App Notification",
+            recipients=[receiver],
+            body=content
+        )
+        mail.send(msg)
+        return True
+    except Exception as e:
+        print(f"[send_email] Failed: {e}")
+        return False
 
 @app.route("/", methods=["GET"])
 def index():
@@ -34,6 +71,52 @@ def login():
             "role": user['role']
         }
     })
+
+@app.route("/api/auth/forgot-password/send", methods=["POST"])
+def forgot_password_send_otp():
+    """
+    Endpoint for frontend to request sending an OTP.
+    Frontend generates the OTP and sends it here.
+    """
+    data = request.get_json()
+    email = data.get("email")
+    otp = data.get("otp")
+
+    if not email or not otp:
+        return jsonify({"message": "Email and OTP are required"}), 400
+
+    user = query_db('SELECT user_id FROM "user" WHERE email = ?', [email], one=True)
+    if not user:
+        return jsonify({"message": "No account found with this email"}), 404
+
+    content = f"Your verification OTP for the Hostel Management App is: {otp}. Please do not share this with anyone."
+    success = send_email(email, content)
+    
+    if success:
+        return jsonify({"message": "OTP sent successfully"}), 200
+    else:
+        return jsonify({"message": "Failed to send email"}), 500
+
+@app.route("/api/auth/forgot-password/reset", methods=["POST"])
+def forgot_password_reset():
+    """
+    Endpoint for final password reset.
+    NOTE: As per request, this endpoint does not verify the OTP itself.
+    """
+    data = request.get_json()
+    email = data.get("email")
+    new_password = data.get("new_password")
+
+    if not email or not new_password:
+        return jsonify({"message": "Email and new password are required"}), 400
+
+    hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    _, rowcount = execute_db('UPDATE "user" SET password = ? WHERE email = ?', [hashed, email])
+    if rowcount == 0:
+        return jsonify({"message": "Failed to update password. Account not found."}), 404
+
+    return jsonify({"message": "Password reset successfully"})
 
 # ==========================================
 # USER PROFILE MANAGEMENT
@@ -327,7 +410,7 @@ def get_student_details(student_id):
         JOIN "user" u ON u.user_id = s.user_id
         LEFT JOIN room r ON s.room_id = r.room_id
         LEFT JOIN hostel h ON r.hostel_id = h.hostel_id
-        WHERE s.student_id = ? LIMIT 1
+        WHERE s.user_id = ? LIMIT 1
     """
     student = query_db(details_query, [student_id], one=True)
     if not student:

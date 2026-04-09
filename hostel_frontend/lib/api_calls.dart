@@ -61,6 +61,28 @@ class ApiManager {
     }
   }
 
+  // --- Forgot Password Flow ---
+
+  static Future<(bool, String?)> sendForgotPasswordOtp(
+    String email,
+    String otp,
+  ) async {
+    return _postWithMessage(
+      '/auth/forgot-password/send',
+      {'email': email, 'otp': otp},
+    );
+  }
+
+  static Future<(bool, String?)> resetPassword(
+    String email,
+    String newPassword,
+  ) async {
+    return _postWithMessage(
+      '/auth/forgot-password/reset',
+      {'email': email, 'new_password': newPassword},
+    );
+  }
+
   // --- Generic Helpers for code reduction ---
 
   static Future<List<dynamic>> _getList(String endpoint) async {
@@ -102,7 +124,9 @@ class ApiManager {
         body: jsonEncode(body),
       );
       if (res.statusCode == 200 || res.statusCode == 201) return (true, null);
-      final msg = (jsonDecode(res.body) as Map)['message'] as String? ?? 'Unknown error';
+      final msg =
+          (jsonDecode(res.body) as Map)['message'] as String? ??
+          'Unknown error';
       return (false, msg);
     } catch (_) {
       return (false, 'Network error');
@@ -120,7 +144,9 @@ class ApiManager {
         body: jsonEncode(body),
       );
       if (res.statusCode == 200 || res.statusCode == 201) return (true, null);
-      final msg = (jsonDecode(res.body) as Map)['message'] as String? ?? 'Unknown error';
+      final msg =
+          (jsonDecode(res.body) as Map)['message'] as String? ??
+          'Unknown error';
       return (false, msg);
     } catch (_) {
       return (false, 'Network error');
@@ -367,7 +393,9 @@ class ApiManager {
       if (res.statusCode == 201) {
         return (true, null, jsonDecode(res.body) as Map<String, dynamic>);
       }
-      final msg = (jsonDecode(res.body) as Map)['message'] as String? ?? 'Unknown error';
+      final msg =
+          (jsonDecode(res.body) as Map)['message'] as String? ??
+          'Unknown error';
       return (false, msg, null);
     } catch (_) {
       return (false, 'Network error', null);
@@ -398,7 +426,9 @@ class ApiManager {
         body: jsonEncode({'parent_user_id': parentUserId}),
       );
       if (res.statusCode == 200) return (true, null);
-      final msg = (jsonDecode(res.body) as Map)['message'] as String? ?? 'Unknown error';
+      final msg =
+          (jsonDecode(res.body) as Map)['message'] as String? ??
+          'Unknown error';
       return (false, msg);
     } catch (_) {
       return (false, 'Network error');
@@ -412,13 +442,12 @@ class ApiManager {
     required String email,
     required String phone,
     required String password,
-  }) =>
-      _postWithMessage('/rector/student/$studentId/parent', {
-        'name': name,
-        'email': email,
-        'phone': phone,
-        'password': password,
-      });
+  }) => _postWithMessage('/rector/student/$studentId/parent', {
+    'name': name,
+    'email': email,
+    'phone': phone,
+    'password': password,
+  });
 
   // ─── USER PROFILE MANAGEMENT ────────────────────────────────
 
@@ -439,21 +468,16 @@ class ApiManager {
     int userId, {
     required String name,
     String? phone,
-  }) =>
-      _putWithMessage('/user/$userId', {
-        'name': name,
-        'phone': phone,
-      });
+  }) => _putWithMessage('/user/$userId', {'name': name, 'phone': phone});
 
   static Future<(bool, String?)> updatePassword(
     int userId,
     String oldPassword,
     String newPassword,
-  ) =>
-      _putWithMessage('/user/$userId/password', {
-        'oldPassword': oldPassword,
-        'newPassword': newPassword,
-      });
+  ) => _putWithMessage('/user/$userId/password', {
+    'oldPassword': oldPassword,
+    'newPassword': newPassword,
+  });
 
   // ─── COUNSELOR — STUDENT ASSIGNMENT ─────────────────
 
@@ -470,8 +494,10 @@ class ApiManager {
 
   /// Counselor releases a student
   static Future<bool> unassignStudentFromCounselor(int studentId) async {
-    return _putWithMessage('/counselor/student/$studentId/unassign', {})
-        .then((res) => res.$1);
+    return _putWithMessage(
+      '/counselor/student/$studentId/unassign',
+      {},
+    ).then((res) => res.$1);
   }
 
   // ─── WARDEN — STUDENT ASSIGNMENT ────────────────────
