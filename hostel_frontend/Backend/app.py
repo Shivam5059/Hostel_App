@@ -68,7 +68,9 @@ def login():
         "user": {
             "user_id": user['user_id'],
             "name": user['name'],
-            "role": user['role']
+            "role": user['role'],
+            "phone": user['phone'],
+            "email": user['email'],
         }
     })
 
@@ -410,9 +412,9 @@ def get_student_details(student_id):
         JOIN "user" u ON u.user_id = s.user_id
         LEFT JOIN room r ON s.room_id = r.room_id
         LEFT JOIN hostel h ON r.hostel_id = h.hostel_id
-        WHERE s.user_id = ? LIMIT 1
+        WHERE s.student_id = ? OR s.user_id = ? LIMIT 1
     """
-    student = query_db(details_query, [student_id], one=True)
+    student = query_db(details_query, [student_id, student_id], one=True)
     if not student:
         return jsonify({"message": "Student not found"}), 404
 
@@ -422,6 +424,38 @@ def get_student_details(student_id):
     result["attendance_summary"] = calculate_attendance_summary(records)
     result["attendance_records"] = records
     return jsonify(result)
+
+@app.route("/api/rector/remove-student/<int:student_id>", methods=["DELETE"])
+def remove_student(student_id):
+    """
+    Permanently removes a student and all associated data from the system.
+    Reserved for Rector/Admin roles.
+    """
+    print(f"Request to delete student: {student_id}")
+    try:
+        # 1. Get user_id first
+        student = query_db("SELECT user_id FROM student WHERE student_id = ?", [student_id], one=True)
+        if not student:
+             return jsonify({"message": "Student not found"}), 404
+        
+        user_id = student['user_id']
+
+        # 2. Delete all related records
+        execute_db("DELETE FROM attendance WHERE student_id = ?", [student_id])
+        execute_db("DELETE FROM complaint WHERE student_id = ?", [student_id])
+        execute_db("DELETE FROM leave_request WHERE student_id = ?", [student_id])
+        execute_db("DELETE FROM room_transfer_requests WHERE student_id = ?", [student_id])
+        
+        # 3. Delete student record
+        execute_db("DELETE FROM student WHERE student_id = ?", [student_id])
+        
+        # 4. Delete user record (Parent of student)
+        execute_db('DELETE FROM "user" WHERE user_id = ?', [user_id])
+
+        return jsonify({"message": "Student and all associated data removed successfully"}), 200
+    except Exception as e:
+        print(f"Error deleting student: {e}")
+        return jsonify({"message": "Failed to delete student", "error": str(e)}), 500
 
 @app.route("/api/warden/attendance/submit", methods=["POST"])
 def submit_attendance():
