@@ -29,19 +29,21 @@ class ApiManager {
         int? studentId;
         String? rollNo;
 
-        // CRITICAL FIX: If the user is a STUDENT, fetch their specific db 'student_id' & 'roll_no'
+        // CRITICAL FIX: Use the specific user-to-student detail endpoint to prevent ID collisions
         if (role == 'STUDENT') {
           final detailRes = await http.get(
-            Uri.parse('$baseUrl/student/$userId/details'),
+            Uri.parse('$baseUrl/student/user/$userId/details'),
           );
           if (detailRes.statusCode == 200) {
             final details = jsonDecode(detailRes.body);
             studentId = details['student_id'];
             rollNo = details['roll_no'];
-            UserSession.roomNumber = details['room_number'];
+            // Also store these in UserSession right away
+            UserSession.roomNumber = details['room_number']?.toString();
             UserSession.hostelName = details['hostel_name'];
           }
         }
+
 
         await UserSession.login(
           loginUserId: userId,
@@ -482,15 +484,13 @@ class ApiManager {
     required String name,
     String? phone,
   }) async {
-    return _putWithMessage(
-      '/user/$userId',
-      {'name': name, 'phone': phone},
-    );
+    return _putWithMessage('/user/$userId', {'name': name, 'phone': phone});
   }
 
   static Future<bool> deleteStudent(int studentId) async {
     return _deleteStatus('/rector/remove-student/$studentId');
   }
+
   static Future<(bool, String?)> updatePassword(
     int userId,
     String oldPassword,

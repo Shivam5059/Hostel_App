@@ -205,34 +205,62 @@ def submit_leave():
     to_date = data.get("to_date")
     reason = data.get("reason")
 
-    query = """
-        INSERT INTO leave_request (student_id, from_date, to_date, reason)
-        VALUES (?, ?, ?, ?)
-    """
-    last_id, _ = execute_db(query, [student_id, from_date, to_date, reason])
-    return jsonify({
-        "message": "Leave request submitted successfully",
-        "leave_id": last_id
-    })
+    print(f"DEBUG: Leave request received for student_id={student_id}")
+
+    if not student_id:
+        return jsonify({"message": "student_id is required"}), 400
+
+    try:
+        query = """
+            INSERT INTO leave_request (student_id, from_date, to_date, reason)
+            VALUES (?, ?, ?, ?)
+        """
+        last_id, _ = execute_db(query, [student_id, from_date, to_date, reason])
+        return jsonify({
+            "message": "Leave request submitted successfully",
+            "leave_id": last_id
+        })
+    except Exception as e:
+        print(f"ERROR in submit_leave: {e}")
+        return jsonify({"message": f"Failed to submit leave: {str(e)}"}), 500
+
 
 def update_leave_status(leave_id):
+    # Get leave flags and student assignment info
     query = """
-        SELECT parent_approved, counselor_approved, warden_approved
-        FROM leave_request
-        WHERE leave_id = ?
+        SELECT lr.parent_approved, lr.counselor_approved, lr.warden_approved,
+               s.parent_id, s.counselor_id, s.room_id
+        FROM leave_request lr
+        JOIN student s ON lr.student_id = s.student_id
+        WHERE lr.leave_id = ?
     """
     leave = query_db(query, [leave_id], one=True)
     if not leave:
         return None
 
-    new_status = 'PENDING'
+    # Logic: 
+    # 1. Any rejection (-1) = REJECTED
+    # 2. All relevant requirements met = APPROVED
+    # Otherwise = PENDING
+    
     if leave['parent_approved'] == -1 or leave['counselor_approved'] == -1 or leave['warden_approved'] == -1:
         new_status = 'REJECTED'
-    elif leave['parent_approved'] == 1 and leave['counselor_approved'] == 1 and leave['warden_approved'] == 1:
-        new_status = 'APPROVED'
+    else:
+        # Check if parent approval is met (if student has a parent assigned)
+        parent_ok = (leave['parent_id'] is None) or (leave['parent_approved'] == 1)
+        # Check if counselor approval is met (if student has a counselor assigned)
+        counselor_ok = (leave['counselor_id'] is None) or (leave['counselor_approved'] == 1)
+        # Check if warden approval is met (Warden always required if room is assigned, but let's be safe)
+        warden_ok = (leave['room_id'] is None) or (leave['warden_approved'] == 1)
+
+        if parent_ok and counselor_ok and warden_ok:
+            new_status = 'APPROVED'
+        else:
+            new_status = 'PENDING'
 
     execute_db("UPDATE leave_request SET status = ? WHERE leave_id = ?", [new_status, leave_id])
     return new_status
+
 
 @app.route("/api/<role>/leave/<int:leave_id>/<action>", methods=["POST"])
 def approve_reject_leave(role, leave_id, action):
@@ -388,13 +416,12 @@ def fetch_student_attendance_records(student_id):
     """
     return query_db(query, [student_id])
 
-@app.route("/api/student/<int:student_id>/attendance", methods=["GET"])
-def get_student_attendance(student_id):
-    lookup_query = "SELECT student_id FROM student WHERE student_id = ? OR user_id = ? LIMIT 1"
-    student = query_db(lookup_query, [student_id, student_id], one=True)
+@app.route("/api/student/<int:sid_or_uid>/attendance", methods=["GET"])
+def get_student_attendance(sid_or_uid):
+    student = query_db("SELECT student_id FROM student WHERE student_id = ?", [sid_or_uid], one=True)
     if not student:
-        return jsonify({"message": "Student not found"}), 404
-
+        student = query_db("SELECT student_id FROM student WHERE user_id = ?", [sid_or_uid], one=True)
+    if not student: return jsonify({"message": "Student not found"}), 404
     actual_student_id = student['student_id']
     records = fetch_student_attendance_records(actual_student_id)
     return jsonify({
@@ -403,27 +430,33 @@ def get_student_attendance(student_id):
         "attendance_records": records
     })
 
+@app.route("/api/student/user/<int:user_id>/details", methods=["GET"])
+def get_student_details_by_user_id(user_id):
+    return get_student_details_internal(user_id, by_user_id=True)
+
 @app.route("/api/student/<int:student_id>/details", methods=["GET"])
 def get_student_details(student_id):
-    details_query = """
+    return get_student_details_internal(student_id, by_user_id=False)
+
+def get_student_details_internal(identifier, by_user_id=True):
+    condition = "s.user_id = ?" if by_user_id else "s.student_id = ?"
+    details_query = f"""
         SELECT s.student_id, s.user_id, u.name, u.email, u.phone,
-               s.roll_no, s.counselor_id, r.room_id, r.room_number, h.hostel_name
+               s.roll_no, s.counselor_id, s.parent_id, r.room_id, r.room_number, h.hostel_name
         FROM student s
         JOIN "user" u ON u.user_id = s.user_id
         LEFT JOIN room r ON s.room_id = r.room_id
         LEFT JOIN hostel h ON r.hostel_id = h.hostel_id
-        WHERE s.student_id = ? OR s.user_id = ? LIMIT 1
+        WHERE {condition} LIMIT 1
     """
-    student = query_db(details_query, [student_id, student_id], one=True)
-    if not student:
-        return jsonify({"message": "Student not found"}), 404
-
+    student = query_db(details_query, [identifier], one=True)
+    if not student: return jsonify({"message": "Student record not found"}), 404
     records = fetch_student_attendance_records(student['student_id'])
-    # Combine dicts
     result = dict(student)
     result["attendance_summary"] = calculate_attendance_summary(records)
     result["attendance_records"] = records
     return jsonify(result)
+
 
 @app.route("/api/rector/remove-student/<int:student_id>", methods=["DELETE"])
 def remove_student(student_id):
