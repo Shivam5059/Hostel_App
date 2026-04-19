@@ -1004,3 +1004,227 @@ def unassign_counselor(student_id):
     if rowcount == 0:
         return jsonify({"message": "Student not found"}), 404
     return jsonify({"message": "Student unassigned successfully"})
+# ==========================================
+# ADMIN — STAFF & USER MANAGEMENT
+# ==========================================
+
+@app.route("/api/admin/staff", methods=["GET"])
+def get_all_staff():
+    """Returns all users with roles RECTOR, WARDEN, or COUNSELOR."""
+    query = """
+        SELECT u.user_id, u.name, u.email, u.phone, u.role, u.created_at,
+               h.hostel_name, h.hostel_id
+        FROM "user" u
+        LEFT JOIN hostel h ON u.user_id = h.warden_id
+        WHERE u.role IN ('RECTOR', 'WARDEN', 'COUNSELOR')
+        ORDER BY u.role, u.name
+    """
+    return jsonify(query_db(query))
+
+@app.route("/api/admin/staff", methods=["POST"])
+def register_staff():
+    data = request.get_json()
+    if not data: return jsonify({"message": "No data provided"}), 400
+    name, email, password, role = data.get("name"), data.get("email"), data.get("password"), data.get("role")
+    phone = data.get("phone")
+
+    if not all([name, email, password, role]):
+        return jsonify({"message": "Missing required fields"}), 400
+    
+    if query_db('SELECT user_id FROM "user" WHERE email = ?', [email]):
+        return jsonify({"message": "Email already exists"}), 409
+
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    execute_db('INSERT INTO "user" (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)', 
+               [name, email, phone, hashed, role])
+    
+    return jsonify({"message": "Staff registered successfully"}), 201
+
+@app.route("/api/admin/staff/<int:user_id>", methods=["PUT"])
+def update_staff(user_id):
+    data = request.get_json()
+    if not data: return jsonify({"message": "No data provided"}), 400
+    name, role = data.get("name"), data.get("role")
+    phone = data.get("phone")
+
+    if not name or not role:
+        return jsonify({"message": "Name and Role are required"}), 400
+
+    execute_db('UPDATE "user" SET name = ?, phone = ?, role = ? WHERE user_id = ?', 
+               [name, phone, role, user_id])
+    return jsonify({"message": "Staff updated successfully"})
+
+@app.route("/api/admin/staff/<int:user_id>", methods=["DELETE"])
+def delete_staff(user_id):
+    # Constraint checks to prevent Foreign Key violations
+    # 1. Active Hostel Assignment
+    if query_db("SELECT hostel_id FROM hostel WHERE warden_id = ?", [user_id], one=True):
+        return jsonify({"message": "Cannot delete: Staff is currently assigned to a hostel"}), 400
+    
+    # 2. Counselor-Student Links
+    if query_db("SELECT student_id FROM student WHERE counselor_id = ?", [user_id], one=True):
+        return jsonify({"message": "Cannot delete: Counselor is assigned to students"}), 400
+
+    # 3. Historical Attendance Records (Wardens)
+    if query_db("SELECT attendance_id FROM attendance WHERE warden_id = ?", [user_id], one=True):
+        return jsonify({"message": "Cannot delete: Warden has existing attendance records. Try deactivating instead."}), 400
+
+    # 4. Handled Complaints (Rectors)
+    if query_db("SELECT complaint_id FROM complaint WHERE rector_id = ?", [user_id], one=True):
+        return jsonify({"message": "Cannot delete: Rector has handled student complaints."}), 400
+
+    execute_db('DELETE FROM "user" WHERE user_id = ?', [user_id])
+    return jsonify({"message": "Staff deleted successfully"})
+
+@app.route("/api/admin/hostels", methods=["GET"])
+def get_all_hostels_admin():
+    return jsonify(query_db('SELECT h.hostel_id, h.hostel_name, h.warden_id, u.name as warden_name FROM hostel h LEFT JOIN "user" u ON h.warden_id = u.user_id'))
+
+@app.route("/api/admin/assign-warden", methods=["POST"])
+def assign_warden_to_hostel():
+    data = request.get_json()
+    if not data: return jsonify({"message": "No data provided"}), 400
+    hostel_id, warden_id = data.get("hostel_id"), data.get("warden_id")
+    if not hostel_id: return jsonify({"message": "hostel_id is required"}), 400
+    execute_db("UPDATE hostel SET warden_id = ? WHERE hostel_id = ?", [warden_id, hostel_id])
+    return jsonify({"message": "Warden assignment updated"})
+
+@app.route("/api/admin/hostels/<int:hostel_id>", methods=["DELETE"])
+def delete_hostel(hostel_id):
+    # Check if any rooms exist in this hostel
+    if query_db("SELECT room_id FROM room WHERE hostel_id = ?", [hostel_id], one=True):
+        return jsonify({"message": "Cannot delete: Hostel has rooms. Delete rooms first."}), 400
+    
+    # Check if any students are assigned to this hostel (even without room)
+    if query_db("SELECT student_id FROM student WHERE hostel_id = ?", [hostel_id], one=True):
+        return jsonify({"message": "Cannot delete: Hostel has assigned students."}), 400
+
+    execute_db("DELETE FROM hostel WHERE hostel_id = ?", [hostel_id])
+    return jsonify({"message": "Hostel deleted successfully"})
+
+# ==========================================
+# ADMIN — INFRASTRUCTURE MANAGEMENT (ROOMS)
+# ==========================================
+
+@app.route("/api/admin/hostels", methods=["POST"])
+def create_hostel():
+    data = request.get_json()
+    if not data: return jsonify({"message": "No data provided"}), 400
+    name = data.get("hostel_name")
+    if not name: return jsonify({"message": "Hostel name is required"}), 400
+    execute_db("INSERT INTO hostel (hostel_name) VALUES (?)", [name])
+    return jsonify({"message": "Hostel created successfully"}), 201
+
+@app.route("/api/admin/hostels/<int:hostel_id>", methods=["PUT"])
+def update_hostel(hostel_id):
+    data = request.get_json()
+    if not data: return jsonify({"message": "No data provided"}), 400
+    name = data.get("hostel_name")
+    if not name: return jsonify({"message": "Hostel name is required"}), 400
+    execute_db("UPDATE hostel SET hostel_name = ? WHERE hostel_id = ?", [name, hostel_id])
+    return jsonify({"message": "Hostel updated successfully"})
+
+@app.route("/api/admin/hostels/<int:hostel_id>/rooms", methods=["GET"])
+def get_hostel_rooms(hostel_id):
+    query = """
+        SELECT r.room_id, r.room_number, r.capacity,
+               (SELECT COUNT(*) FROM student s WHERE s.room_id = r.room_id) as occupied
+        FROM room r WHERE r.hostel_id = ?
+        ORDER BY r.room_number
+    """
+    return jsonify(query_db(query, [hostel_id]))
+
+@app.route("/api/admin/rooms", methods=["POST"])
+def create_room():
+    data = request.get_json()
+    if not data: return jsonify({"message": "No data provided"}), 400
+    h_id, r_num, cap = data.get("hostel_id"), data.get("room_number"), data.get("capacity")
+    if not all([h_id, r_num, cap]): return jsonify({"message": "Missing fields"}), 400
+    execute_db("INSERT INTO room (hostel_id, room_number, capacity) VALUES (?, ?, ?)", [h_id, r_num, cap])
+    return jsonify({"message": "Room created successfully"}), 201
+
+@app.route("/api/admin/rooms/<int:room_id>", methods=["PUT"])
+def update_room(room_id):
+    data = request.get_json()
+    if not data: return jsonify({"message": "No data provided"}), 400
+    r_num, cap = data.get("room_number"), data.get("capacity")
+    if not r_num or not cap: return jsonify({"message": "Missing fields"}), 400
+    execute_db("UPDATE room SET room_number = ?, capacity = ? WHERE room_id = ?", [r_num, cap, room_id])
+    return jsonify({"message": "Room updated successfully"})
+
+@app.route("/api/admin/rooms/<int:room_id>", methods=["DELETE"])
+def delete_room(room_id):
+    # Check if room is occupied
+    if query_db("SELECT student_id FROM student WHERE room_id = ?", [room_id], one=True):
+        return jsonify({"message": "Cannot delete: Room is currently occupied by students"}), 400
+    execute_db("DELETE FROM room WHERE room_id = ?", [room_id])
+    return jsonify({"message": "Room deleted successfully"})
+
+# ==========================================
+# NOTICE BOARD MANAGEMENT
+# ==========================================
+
+@app.route("/api/notices", methods=["GET"])
+def get_notices():
+    query = """
+        SELECT n.*, u.name as author_name 
+        FROM notice n 
+        LEFT JOIN "user" u ON n.author_id = u.user_id 
+        ORDER BY n.created_at DESC
+    """
+    return jsonify(query_db(query))
+
+@app.route("/api/admin/notices", methods=["POST"])
+def create_notice():
+    data = request.get_json()
+    if not data: return jsonify({"message": "No data provided"}), 400
+    title, content, author_id = data.get("title"), data.get("content"), data.get("author_id")
+    if not title or not content:
+        return jsonify({"message": "Title and content are required"}), 400
+    execute_db("INSERT INTO notice (title, content, author_id) VALUES (?, ?, ?)", [title, content, author_id])
+    return jsonify({"message": "Notice posted successfully"}), 201
+
+@app.route("/api/admin/notices/<int:notice_id>", methods=["DELETE"])
+def delete_notice(notice_id):
+    execute_db("DELETE FROM notice WHERE notice_id = ?", [notice_id])
+    return jsonify({"message": "Notice deleted successfully"})
+
+# ==========================================
+# ADMIN — ANALYTICS & DASHBOARD
+# ==========================================
+
+@app.route("/api/admin/stats", methods=["GET"])
+def get_admin_stats():
+    # 1. Basic Totals
+    total_students = query_db("SELECT COUNT(*) as count FROM student", one=True)['count']
+    total_staff = query_db("SELECT COUNT(*) as count FROM \"user\" WHERE role IN ('RECTOR', 'WARDEN', 'COUNSELOR')", one=True)['count']
+    total_hostels = query_db("SELECT COUNT(*) as count FROM hostel", one=True)['count']
+    
+    # 2. Occupancy Metrics
+    room_stats = query_db("SELECT SUM(capacity) as total_cap FROM room", one=True)
+    total_capacity = room_stats['total_cap'] or 0
+    occupied_count = query_db("SELECT COUNT(*) as count FROM student WHERE room_id IS NOT NULL", one=True)['count']
+    
+    # 3. Complaints status
+    pending_complaints = query_db("SELECT COUNT(*) as count FROM complaint WHERE status = 'PENDING'", one=True)['count']
+    
+    # 4. Hostel-wise breakdown
+    hostel_breakdown = query_db("""
+        SELECT h.hostel_name, 
+               (SELECT IFNULL(SUM(capacity), 0) FROM room r WHERE r.hostel_id = h.hostel_id) as capacity,
+               (SELECT COUNT(*) FROM student s JOIN room r ON s.room_id = r.room_id WHERE r.hostel_id = h.hostel_id) as student_count
+        FROM hostel h
+    """)
+
+    return jsonify({
+        "totals": {
+            "students": total_students,
+            "staff": total_staff,
+            "hostels": total_hostels,
+            "capacity": total_capacity,
+            "occupied": occupied_count,
+            "available": max(0, total_capacity - occupied_count),
+            "pending_complaints": pending_complaints
+        },
+        "hostels": hostel_breakdown
+    })

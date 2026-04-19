@@ -4,6 +4,7 @@ import '../../theme.dart';
 import '../../user_data.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'student_details_view.dart';
+import '../../admin/csv_helper.dart';
 
 class StudentsView extends StatefulWidget {
   const StudentsView({super.key});
@@ -44,12 +45,20 @@ class _StudentsViewState extends State<StudentsView> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Claim Student'),
-        content: Text('Are you sure you want to assign yourself as the counselor for $studentName?'),
+        content: Text(
+          'Are you sure you want to assign yourself as the counselor for $studentName?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Claim'),
           ),
         ],
@@ -61,7 +70,12 @@ class _StudentsViewState extends State<StudentsView> {
       if (ok) {
         _refresh();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Student claimed successfully'), backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Student claimed successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
         }
       }
     }
@@ -89,100 +103,155 @@ class _StudentsViewState extends State<StudentsView> {
       return _buildStudentList(_myStudentsFuture, isUnassigned: false);
     }
 
-    final String unassignedLabel = role == 'COUNSELOR' ? 'Unassigned' : 'No Room';
+    final String unassignedLabel = role == 'COUNSELOR'
+        ? 'Unassigned'
+        : 'No Room';
 
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            color: Colors.white,
-            child: TabBar(
-              indicatorSize: TabBarIndicatorSize.tab,
-              indicator: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: AppTheme.primaryColor,
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              color: Colors.white,
+              child: TabBar(
+                labelColor: AppTheme.primaryColor,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: AppTheme.primaryColor,
+                tabs: [
+                  Tab(text: 'My Students'),
+                  Tab(text: unassignedLabel),
+                ],
               ),
-              labelColor: Colors.white,
-              unselectedLabelColor: AppTheme.textSecondaryColor,
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-              tabs: [
-                const Tab(text: 'My Students'),
-                Tab(text: unassignedLabel),
-              ],
             ),
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildStudentList(_myStudentsFuture, isUnassigned: false),
-                _buildStudentList(_unassignedStudentsFuture, isUnassigned: true),
-              ],
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildStudentList(_myStudentsFuture, isUnassigned: false),
+                  _buildStudentList(
+                    _unassignedStudentsFuture,
+                    isUnassigned: true,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+      floatingActionButton: UserSession.role == 'ADMIN'
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final students = await ApiManager.fetchAllStudents();
+                if (students.isNotEmpty) {
+                  final csv = CsvExportHelper.convertToCsv(
+                    students,
+                    ['Name', 'Roll No', 'Email', 'Phone', 'Hostel', 'Room'],
+                    [
+                      'name',
+                      'roll_no',
+                      'email',
+                      'phone',
+                      'hostel_name',
+                      'room_number',
+                    ],
+                  );
+                  if (mounted)
+                    CsvExportHelper.showExportDialog(context, 'Students', csv);
+                }
+              },
+              label: const Text('Export CSV'),
+              icon: const Icon(Icons.file_download_outlined),
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+            )
+          : null,
     );
   }
 
-  Widget _buildStudentList(Future<List<dynamic>> future, {required bool isUnassigned}) {
-    return RefreshIndicator(
-      onRefresh: () async => _refresh(),
-      child: FutureBuilder<List<dynamic>>(
-        future: future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text("Error fetching students", style: TextStyle(color: AppTheme.accentColor)));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return _buildEmptyState(isUnassigned);
-          }
+  Widget _buildStudentList(
+    Future<List<dynamic>> future, {
+    required bool isUnassigned,
+  }) {
+    return FutureBuilder<List<dynamic>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _buildEmptyState(isUnassigned);
+        }
 
-          final students = snapshot.data!;
-          return ListView.builder(
-            padding: const EdgeInsets.all(24),
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            itemCount: students.length,
-            itemBuilder: (context, index) {
-              final student = students[index];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                     BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))
-                  ],
+        final students = snapshot.data!;
+        return ListView.builder(
+          padding: const EdgeInsets.all(24),
+          itemCount: students.length,
+          itemBuilder: (context, index) {
+            final student = students[index];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ListTile(
+                onTap: isUnassigned
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => StudentDetailsView(
+                              studentId: student['student_id'],
+                            ),
+                          ),
+                        ).then((_) => _refresh());
+                      },
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
                 ),
-                child: ListTile(
-                  onTap: isUnassigned ? null : () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (context) => StudentDetailsView(studentId: student['student_id']),
-                    )).then((_) => _refresh());
-                  },
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  leading: CircleAvatar(
-                    radius: 24,
-                    backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-                    child: Text(
-                       (student['name'] ?? '?')[0].toUpperCase(),
-                       style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 18),
+                leading: CircleAvatar(
+                  radius: 24,
+                  backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+                  child: Text(
+                    (student['name'] ?? '?')[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
                     ),
                   ),
-                  title: Text(student['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  subtitle: Text('Roll No: ${student['roll_no'] ?? 'N/A'}\nHostel: ${student['hostel_name'] ?? 'No room assigned'}'),
-                  trailing: isUnassigned 
+                ),
+                title: Text(
+                  student['name'] ?? 'Unknown',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                subtitle: Text(
+                  'Roll No: ${student['roll_no'] ?? 'N/A'}\nHostel: ${student['hostel_name'] ?? 'No room assigned'}',
+                ),
+                trailing: isUnassigned
                     ? _buildUnassignedAction(student)
                     : const Icon(Icons.chevron_right, color: Colors.grey),
-                  isThreeLine: true,
-                ),
-              ).animate().fadeIn(delay: (100 * index).ms).slideX(begin: 0.05);
-            },
-          );
-        },
-      ),
+                isThreeLine: true,
+              ),
+            ).animate().fadeIn(delay: (100 * index).ms).slideX(begin: 0.05);
+          },
+        );
+      },
     );
   }
 
@@ -204,7 +273,10 @@ class _StudentsViewState extends State<StudentsView> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         padding: const EdgeInsets.symmetric(horizontal: 16),
       ),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+      child: Text(
+        label,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+      ),
     );
   }
 
@@ -214,19 +286,28 @@ class _StudentsViewState extends State<StudentsView> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            isUnassigned ? Icons.how_to_reg_outlined : Icons.group_off_outlined, 
-            size: 72, 
-            color: Colors.grey.shade200
+            isUnassigned ? Icons.how_to_reg_outlined : Icons.group_off_outlined,
+            size: 72,
+            color: Colors.grey.shade200,
           ),
           const SizedBox(height: 16),
           Text(
-            isUnassigned ? (UserSession.role == 'WARDEN' ? 'All Students have Rooms' : 'No New Students to Claim') : 'No Students Assigned',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade400),
+            isUnassigned
+                ? (UserSession.role == 'WARDEN'
+                      ? 'All Students have Rooms'
+                      : 'No New Students to Claim')
+                : 'No Students Assigned',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade400,
+            ),
           ),
-          if (isUnassigned) Text(
-            'New registrations will appear here.',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
-          ),
+          if (isUnassigned)
+            Text(
+              'New registrations will appear here.',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
+            ),
         ],
       ).animate().fadeIn(),
     );
@@ -264,16 +345,26 @@ class _RoomAssignmentSheetState extends State<_RoomAssignmentSheet> {
     if (_selectedRoomId == null) return;
     setState(() => _submitting = true);
 
-    final ok = await ApiManager.assignRoomToStudent(widget.studentId, _selectedRoomId!);
-    
+    final ok = await ApiManager.assignRoomToStudent(
+      widget.studentId,
+      _selectedRoomId!,
+    );
+
     setState(() => _submitting = false);
     if (mounted) {
       if (ok) {
         Navigator.pop(context);
         widget.onSuccess();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Room assigned successfully'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Room assigned successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to assign room')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to assign room')));
       }
     }
   }
@@ -291,29 +382,48 @@ class _RoomAssignmentSheetState extends State<_RoomAssignmentSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Center(
-            child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ),
           const SizedBox(height: 24),
           Text(
             'Assign Room to ${widget.studentName}',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimaryColor),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textPrimaryColor,
+            ),
           ),
           const SizedBox(height: 8),
-          const Text('Select a room with available vacancy in your hostel.', style: TextStyle(color: AppTheme.textSecondaryColor)),
+          const Text(
+            'Select a room with available vacancy in your hostel.',
+            style: TextStyle(color: AppTheme.textSecondaryColor),
+          ),
           const SizedBox(height: 24),
-          
+
           Flexible(
             child: FutureBuilder<List<dynamic>>(
               future: _roomsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
+                  return const SizedBox(
+                    height: 200,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
                 }
                 final rooms = snapshot.data ?? [];
                 if (rooms.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Center(child: Text('No available rooms in your hostel.')),
+                    child: Center(
+                      child: Text('No available rooms in your hostel.'),
+                    ),
                   );
                 }
 
@@ -325,32 +435,65 @@ class _RoomAssignmentSheetState extends State<_RoomAssignmentSheet> {
                     final r = rooms[i];
                     final isFull = r['occupied'] >= r['capacity'];
                     final isSelected = _selectedRoomId == r['room_id'];
-                    
+
                     return GestureDetector(
-                      onTap: isFull ? null : () => setState(() => _selectedRoomId = r['room_id']),
+                      onTap: isFull
+                          ? null
+                          : () =>
+                                setState(() => _selectedRoomId = r['room_id']),
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
+                        ),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppTheme.primaryColor.withValues(alpha: 0.08) : Colors.grey.shade50,
+                          color: isSelected
+                              ? AppTheme.primaryColor.withValues(alpha: 0.08)
+                              : Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isSelected ? AppTheme.primaryColor : Colors.grey.shade200,
+                            color: isSelected
+                                ? AppTheme.primaryColor
+                                : Colors.grey.shade200,
                             width: isSelected ? 2 : 1,
                           ),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.meeting_room_outlined, color: isSelected ? AppTheme.primaryColor : Colors.grey),
+                            Icon(
+                              Icons.meeting_room_outlined,
+                              color: isSelected
+                                  ? AppTheme.primaryColor
+                                  : Colors.grey,
+                            ),
                             const SizedBox(width: 16),
-                            Expanded(child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Room ${r['room_number']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                Text('${r['occupied']} / ${r['capacity']} Occupied', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                              ],
-                            )),
-                            if (isSelected) const Icon(Icons.check_circle, color: AppTheme.primaryColor),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Room ${r['room_number']}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${r['occupied']} / ${r['capacity']} Occupied',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(
+                                Icons.check_circle,
+                                color: AppTheme.primaryColor,
+                              ),
                           ],
                         ),
                       ),
@@ -360,18 +503,36 @@ class _RoomAssignmentSheetState extends State<_RoomAssignmentSheet> {
               },
             ),
           ),
-          
+
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: (_selectedRoomId == null || _submitting) ? null : _submit,
+            onPressed: (_selectedRoomId == null || _submitting)
+                ? null
+                : _submit,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            child: _submitting 
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text('Confirm Assignment', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            child: _submitting
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    'Confirm Assignment',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
         ],
       ),

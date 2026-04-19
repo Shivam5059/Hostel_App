@@ -225,7 +225,7 @@ class _StudentDetailsViewState extends State<StudentDetailsView> {
                   ).animate().fadeIn(delay: 700.ms),
                 ],
 
-                if (UserSession.role == 'RECTOR') ...[
+                if (UserSession.role == 'RECTOR' || UserSession.role == 'ADMIN') ...[
                   const SizedBox(height: 48),
                   SizedBox(
                     width: double.infinity,

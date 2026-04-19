@@ -44,7 +44,6 @@ class ApiManager {
           }
         }
 
-
         await UserSession.login(
           loginUserId: userId,
           loginName: data['user']['name'],
@@ -536,5 +535,70 @@ class ApiManager {
     return _putWithMessage('/warden/student/$studentId/assign-room', {
       'room_id': roomId,
     }).then((res) => res.$1);
+  }
+
+  // ─── ADMIN — STAFF MANAGEMENT ────────────────────────
+  static Future<List<dynamic>> fetchStaffAdmin() => _getList('/admin/staff');
+
+  static Future<(bool, String?)> registerStaffAdmin(Map<String, dynamic> data) =>
+      _postWithMessage('/admin/staff', data);
+
+  static Future<(bool, String?)> updateStaffAdmin(int id, Map<String, dynamic> data) =>
+      _putWithMessage('/admin/staff/$id', data);
+
+  static Future<(bool, String?)> deleteStaffAdmin(int id) async {
+    final res = await http.delete(Uri.parse('$baseUrl/admin/staff/$id'), headers: _headers);
+    if (res.statusCode == 200) return (true, null);
+    return (false, jsonDecode(res.body)['message'] as String? ?? 'Error');
+  }
+
+  static Future<List<dynamic>> fetchHostelsAdmin() => _getList('/admin/hostels');
+
+  static Future<bool> assignWardenAdmin(int hId, int? wId) =>
+      _postStatus('/admin/assign-warden', {'hostel_id': hId, 'warden_id': wId});
+
+  static Future<(bool, String?)> deleteHostelAdmin(int id) async {
+    final res = await http.delete(Uri.parse('$baseUrl/admin/hostels/$id'), headers: _headers);
+    if (res.statusCode == 200) return (true, null);
+    return (false, jsonDecode(res.body)['message'] as String? ?? 'Error');
+  }
+
+  static Future<(bool, String?)> createHostelAdmin(String name) =>
+      _postWithMessage('/admin/hostels', {'hostel_name': name});
+
+  static Future<(bool, String?)> updateHostelAdmin(int id, String name) =>
+      _putWithMessage('/admin/hostels/$id', {'hostel_name': name});
+
+  static Future<List<dynamic>> fetchRoomsAdmin(int hostelId) =>
+      _getList('/admin/hostels/$hostelId/rooms');
+
+  static Future<(bool, String?)> createRoomAdmin(Map<String, dynamic> data) =>
+      _postWithMessage('/admin/rooms', data);
+
+  static Future<(bool, String?)> updateRoomAdmin(int id, Map<String, dynamic> data) =>
+      _putWithMessage('/admin/rooms/$id', data);
+
+  static Future<(bool, String?)> deleteRoomAdmin(int id) async {
+    final res = await http.delete(Uri.parse('$baseUrl/admin/rooms/$id'), headers: _headers);
+    if (res.statusCode == 200) return (true, null);
+    return (false, jsonDecode(res.body)['message'] as String? ?? 'Error');
+  }
+
+  // ─── NOTICE BOARD ───────────────────────────────────
+  static Future<List<dynamic>> fetchNotices() => _getList('/notices');
+
+  static Future<(bool, String?)> createNoticeAdmin(Map<String, dynamic> data) =>
+      _postWithMessage('/admin/notices', data);
+
+  static Future<(bool, String?)> deleteNoticeAdmin(int id) async {
+    final res = await http.delete(Uri.parse('$baseUrl/admin/notices/$id'), headers: _headers);
+    if (res.statusCode == 200) return (true, null);
+    return (false, jsonDecode(res.body)['message'] as String? ?? 'Error');
+  }
+
+  static Future<Map<String, dynamic>?> fetchAdminStats() async {
+    final res = await http.get(Uri.parse('$baseUrl/admin/stats'), headers: _headers);
+    if (res.statusCode == 200) return jsonDecode(res.body);
+    return null;
   }
 }

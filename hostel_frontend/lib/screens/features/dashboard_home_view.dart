@@ -4,6 +4,7 @@ import '../base_dashboard.dart';
 import '../../theme.dart';
 import '../../api_calls.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
 
 class DashboardHomeView extends StatefulWidget {
   const DashboardHomeView({super.key});
@@ -14,13 +15,28 @@ class DashboardHomeView extends StatefulWidget {
 
 class _DashboardHomeViewState extends State<DashboardHomeView> {
   Map<String, dynamic>? _attendanceSummary;
+  List<dynamic> _notices = [];
   bool _isLoadingAttendance = false;
+  bool _isLoadingNotices = false;
 
   @override
   void initState() {
     super.initState();
+    _fetchNotices();
     if (UserSession.role == 'STUDENT') {
       _fetchAttendance();
+    }
+  }
+
+  Future<void> _fetchNotices() async {
+    if (!mounted) return;
+    setState(() => _isLoadingNotices = true);
+    final data = await ApiManager.fetchNotices();
+    if (mounted) {
+      setState(() {
+        _notices = data.take(5).toList(); // Show latest 5
+        _isLoadingNotices = false;
+      });
     }
   }
 
@@ -56,7 +72,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                 context.findAncestorStateOfType<BaseDashboardState>()?.changePage(profileIndex + 1);
               }
             },
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(24),
             child: Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
@@ -65,7 +81,7 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))
                 ]
@@ -119,6 +135,11 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
           if (UserSession.role == 'STUDENT') ...[
             const SizedBox(height: 48),
             _buildAttendanceSection(),
+          ],
+
+          if (_notices.isNotEmpty) ...[
+            const SizedBox(height: 48),
+            _buildNoticesSection(),
           ],
 
           const SizedBox(height: 48),
@@ -296,6 +317,90 @@ class _DashboardHomeViewState extends State<DashboardHomeView> {
         ),
       ],
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.05);
+  }
+
+  Widget _buildNoticesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Announcements',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 22),
+            ),
+            TextButton(
+              onPressed: () {
+                final noticeIndex = UserSession.availableFunctions.indexWhere((f) => f.title.toLowerCase().contains('notice'));
+                if (noticeIndex != -1) {
+                  context.findAncestorStateOfType<BaseDashboardState>()?.changePage(noticeIndex + 1);
+                }
+              },
+              child: const Text('View All'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 160,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: _notices.length,
+            itemBuilder: (context, index) {
+              final n = _notices[index];
+              final date = DateTime.parse(n['created_at']);
+              final formattedDate = DateFormat('MMM d').format(date);
+
+              return Container(
+                width: 280,
+                margin: const EdgeInsets.only(right: 16, bottom: 8),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))
+                  ],
+                  border: Border.all(color: Colors.grey.shade100)
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(color: AppTheme.secondaryColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+                          child: const Icon(Icons.campaign_outlined, color: AppTheme.secondaryColor, size: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(formattedDate, style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      n['title'] ?? 'No Title',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      n['content'] ?? '',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: AppTheme.textSecondaryColor, fontSize: 13, height: 1.3),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(delay: (index * 100).ms).slideX(begin: 0.2);
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildCleanStat(String label, String value, Color color) {

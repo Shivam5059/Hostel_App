@@ -9,6 +9,10 @@ import 'screens/features/profile_view.dart';
 import 'screens/features/menu_view.dart';
 import 'screens/features/menu_edit_view.dart';
 import 'screens/features/new_admissions_view.dart';
+import 'admin/staff_management_view.dart';
+import 'admin/hostel_management_view.dart';
+import 'admin/notice_management_view.dart';
+import 'admin/admin_stats_view.dart';
 
 class RoleFunction {
   final String title;
@@ -25,8 +29,7 @@ class UserSession {
   static String? rollNo; // For STUDENT roll no lookup
   static String? name;
   static String? email;
-  static String?
-  role; // e.g. "STUDENT", "PARENT", "WARDEN", "COUNSELOR", "RECTOR"
+  static String? role; // e.g. "STUDENT", "PARENT", "WARDEN", "COUNSELOR", "RECTOR"
   static String? phone;
   static String? roomNumber;
   static String? hostelName;
@@ -52,7 +55,7 @@ class UserSession {
 
   static Future<void> saveSession() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     Future<void> sync(String key, dynamic value) async {
       if (value == null) {
         await prefs.remove(key);
@@ -224,6 +227,7 @@ class UserSession {
             page: const ProfileView(),
           ),
         ];
+
       case 'RECTOR':
         return [
           RoleFunction(
@@ -255,6 +259,45 @@ class UserSession {
             title: 'Edit Menu',
             icon: Icons.edit_calendar_outlined,
             page: const MenuEditView(),
+          ),
+          RoleFunction(
+            title: 'Profile',
+            icon: Icons.person_outline,
+            page: const ProfileView(),
+          ),
+        ];
+
+      case 'ADMIN':
+        return [
+          RoleFunction(
+            title: 'Dashboard',
+            icon: Icons.dashboard_outlined,
+            page: const AdminStatsView(),
+          ),
+          RoleFunction(
+            title: 'Staff Management',
+            icon: Icons.admin_panel_settings_outlined,
+            page: const StaffManagementView(),
+          ),
+          RoleFunction(
+            title: 'Hostels',
+            icon: Icons.domain_outlined,
+            page: const HostelManagementView(),
+          ),
+          RoleFunction(
+            title: 'Notice Board',
+            icon: Icons.announcement_outlined,
+            page: const NoticeManagementView(),
+          ),
+          RoleFunction(
+            title: 'Students',
+            icon: Icons.group_outlined,
+            page: const StudentsView(),
+          ),
+          RoleFunction(
+            title: 'Complaints',
+            icon: Icons.report_problem_outlined,
+            page: const ComplaintsView(),
           ),
           RoleFunction(
             title: 'Profile',
