@@ -4,6 +4,10 @@ from flask_mail import Mail, Message
 from dotenv import load_dotenv
 import bcrypt
 import os
+import csv
+import subprocess
+import threading
+import sys
 from db import query_db, execute_db, execute_many_db, get_db_connection
 
 load_dotenv()
@@ -298,6 +302,10 @@ def get_assigned_leaves(role):
         assigned_column = 'h.warden_id'
         assigned_id = warden_id
         condition = "lr.status = 'PENDING' AND lr.parent_approved = 1 AND lr.warden_approved = 0"
+    elif role == 'admin':
+        assigned_column = '1'
+        assigned_id = 1
+        condition = "lr.status = 'PENDING'"
     else:
         return jsonify({"message": "Invalid endpoint or missing params"}), 404
 
@@ -336,6 +344,10 @@ def get_leave_history(role):
         assigned_column = 'h.warden_id'
         assigned_id = warden_id
         approved_column = 'lr.warden_approved'
+    elif role == 'admin':
+        assigned_column = '1'
+        assigned_id = 1
+        approved_column = "(CASE WHEN lr.status != 'PENDING' THEN 1 ELSE 0 END)"
     else:
         return jsonify({"message": "Invalid endpoint or missing params"}), 404
 
@@ -544,6 +556,29 @@ def get_detailed_attendance_history(warden_id):
         ORDER BY a.attendance_date DESC, u.name ASC
     """
     return jsonify(query_db(query, [warden_id]))
+
+@app.route("/api/admin/attendance-history", methods=["GET"])
+def get_admin_attendance_history():
+    query = """
+        SELECT a.attendance_date, COUNT(*) AS total_students,
+               SUM(CASE WHEN a.status = 'PRESENT' THEN 1 ELSE 0 END) AS present_count,
+               SUM(CASE WHEN a.status = 'ABSENT' THEN 1 ELSE 0 END) AS absent_count,
+               MAX(a.marked_at) AS marked_at
+        FROM attendance a
+        GROUP BY a.attendance_date ORDER BY a.attendance_date DESC
+    """
+    return jsonify(query_db(query))
+
+@app.route("/api/admin/attendance-history/detailed", methods=["GET"])
+def get_admin_detailed_attendance_history():
+    query = """
+        SELECT a.attendance_date, u.name as student_name, s.roll_no, a.status
+        FROM attendance a
+        JOIN student s ON a.student_id = s.student_id
+        JOIN "user" u ON s.user_id = u.user_id
+        ORDER BY a.attendance_date DESC, u.name ASC
+    """
+    return jsonify(query_db(query))
 
 @app.route("/api/warden/<int:warden_id>/attendance/<date>", methods=["GET"])
 def get_attendance_date_details(warden_id, date):
@@ -1240,3 +1275,121 @@ def get_admin_stats():
         },
         "hostels": hostel_breakdown
     })
+
+# ==========================================
+# FACE RECOGNITION REGISTRATION
+# ==========================================
+
+@app.route("/api/student/<int:student_id>/face/upload", methods=["POST"])
+def upload_face_photos(student_id):
+    student = query_db("SELECT s.roll_no, u.name FROM student s JOIN \"user\" u ON s.user_id = u.user_id WHERE s.student_id = ?", [student_id], one=True)
+    if not student:
+        return jsonify({"message": "Student not found"}), 404
+
+    roll_no = student['roll_no']
+    name = student['name']
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    face_data_dir = os.path.join(base_dir, "face_recognition", "face_data")
+    student_dir = os.path.join(face_data_dir, f"student_{roll_no}")
+
+    os.makedirs(student_dir, exist_ok=True)
+
+    required_files = ['front', 'left', 'right', 'up', 'down']
+    saved_files = []
+
+    for direction in required_files:
+        if direction in request.files:
+            file = request.files[direction]
+            if file.filename:
+                ext = os.path.splitext(file.filename)[1]
+                if not ext:
+                    ext = ".jpg"
+                file_path = os.path.join(student_dir, f"{direction}{ext}")
+                file.save(file_path)
+                saved_files.append(direction)
+
+    if len(saved_files) == 0:
+        return jsonify({"message": "No valid files provided"}), 400
+
+    names_file = os.path.join(face_data_dir, "student_names.csv")
+    existing_entries = []
+    updated = False
+
+    if os.path.exists(names_file):
+        with open(names_file, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("student_id") == roll_no:
+                    row["student_name"] = name
+                    updated = True
+                existing_entries.append(row)
+
+    if not updated:
+        existing_entries.append({"student_id": roll_no, "student_name": name})
+
+    with open(names_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["student_id", "student_name"])
+        writer.writeheader()
+        writer.writerows(existing_entries)
+
+    return jsonify({"message": f"Saved {len(saved_files)} photos successfully."})
+
+
+@app.route("/api/admin/face/train", methods=["POST"])
+def trigger_face_training():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    train_script = os.path.join(base_dir, "face_recognition", "train_model.py")
+    
+    if not os.path.exists(train_script):
+        return jsonify({"message": "Training script not found"}), 404
+
+    def run_training():
+        try:
+            print("[Backend] Starting asynchronous model training...")
+            subprocess.run([sys.executable, train_script], check=True)
+            print("[Backend] Training completed successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"[Backend] Training failed: {e}")
+        except Exception as e:
+            print(f"[Backend] Training error: {e}")
+
+    thread = threading.Thread(target=run_training)
+    thread.start()
+
+    return jsonify({"message": "Training triggered successfully. This will take a few minutes."})
+
+@app.route("/api/recognition-event", methods=["POST"])
+def handle_recognition_event():
+    """Endpoint for Raspberry Pi to send face recognition entry/exit logs."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "No data provided"}), 400
+
+    roll_no = data.get("student_id") # Pi sends roll_no as student_id
+    event_type = data.get("event_type")
+    timestamp = data.get("timestamp")
+    confidence = data.get("confidence")
+
+    if not all([roll_no, event_type, timestamp]):
+        return jsonify({"message": "Missing required fields"}), 400
+
+    # Look up the actual database student_id from roll_no
+    student = query_db("SELECT student_id FROM student WHERE roll_no = ?", [roll_no], one=True)
+    if not student:
+        print(f"[GateLog] Unknown roll_no: {roll_no}")
+        return jsonify({"message": "Student not found"}), 404
+
+    db_student_id = student['student_id']
+
+    # Insert the gate log
+    try:
+        execute_db("""
+            INSERT INTO gate_log (student_id, event_type, confidence, log_time)
+            VALUES (?, ?, ?, ?)
+        """, [db_student_id, event_type, confidence, timestamp])
+        print(f"[GateLog] Logged {event_type} for {roll_no} at {timestamp}")
+        return jsonify({"message": "Event logged successfully"}), 201
+    except Exception as e:
+        print(f"[GateLog] Failed to insert: {e}")
+        return jsonify({"message": "Database error"}), 500

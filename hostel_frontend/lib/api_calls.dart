@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:camera/camera.dart';
 import 'user_data.dart';
 
 class ApiManager {
@@ -211,6 +212,8 @@ class ApiManager {
       );
     } else if (role == 'WARDEN') {
       return _getList('/warden/leaves$suffix?wardenId=${UserSession.userId}');
+    } else if (role == 'ADMIN') {
+      return _getList('/admin/leaves$suffix');
     }
     return [];
   }
@@ -305,10 +308,16 @@ class ApiManager {
   }
 
   static Future<List<dynamic>> fetchWardenAttendanceHistory() async {
+    if (UserSession.role == 'ADMIN') {
+      return _getList('/admin/attendance-history');
+    }
     return _getList('/warden/${UserSession.userId}/attendance-history');
   }
 
   static Future<List<dynamic>> fetchDetailedAttendanceHistory() async {
+    if (UserSession.role == 'ADMIN') {
+      return _getList('/admin/attendance-history/detailed');
+    }
     return _getList('/warden/${UserSession.userId}/attendance-history/detailed');
   }
 
@@ -608,5 +617,45 @@ class ApiManager {
     final res = await http.get(Uri.parse('$baseUrl/admin/stats'), headers: _headers);
     if (res.statusCode == 200) return jsonDecode(res.body);
     return null;
+  }
+
+  // --- Face Registration ---
+  static Future<bool> uploadFaceRegistrationPhotos(Map<String, XFile> photos) async {
+    try {
+      final studentId = UserSession.studentId;
+      if (studentId == null) return false;
+      
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/student/$studentId/face/upload'));
+      
+      for (var entry in photos.entries) {
+        final bytes = await entry.value.readAsBytes();
+        request.files.add(http.MultipartFile.fromBytes(
+          entry.key,
+          bytes,
+          filename: '${entry.key}.jpg',
+        ));
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        // Asynchronously trigger training
+        triggerFaceModelTraining();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Upload Error: $e');
+      return false;
+    }
+  }
+
+  static Future<void> triggerFaceModelTraining() async {
+    try {
+      await http.post(Uri.parse('$baseUrl/admin/face/train'));
+    } catch (e) {
+      print('Trigger training error: $e');
+    }
   }
 }

@@ -78,6 +78,8 @@ class _AttendanceViewState extends State<AttendanceView> {
       );
     } else if (role == 'WARDEN') {
       return _buildWardenPerspective();
+    } else if (role == 'ADMIN') {
+      return _buildHistoryTab();
     }
     
     return const Center(child: Text("Attendance not supported for this role."));

@@ -8,6 +8,19 @@ def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row  # This enables column access by name: row['column_name']
     conn.execute("PRAGMA foreign_keys = ON")
+    
+    # Ensure gate_log table exists for Raspberry Pi face recognition
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS gate_log (
+            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER,
+            event_type TEXT CHECK (event_type IN ('entry', 'exit')),
+            confidence REAL,
+            log_time TEXT,
+            FOREIGN KEY (student_id) REFERENCES student(student_id)
+        )
+    ''')
+    conn.commit()
     return conn
 
 def query_db(query, args=(), one=False):

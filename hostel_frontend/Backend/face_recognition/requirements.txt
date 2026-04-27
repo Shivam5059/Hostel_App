@@ -1,0 +1,18 @@
+# Face Recognition Project requirements
+# Target interpreter: Python 3.11
+# Note: Pi camera CLI tools (rpicam-vid/rpicam-jpeg) are system packages, not pip packages.
+
+# Core runtime
+numpy==1.26.4
+opencv-python==4.11.0.86
+requests==2.32.3
+
+# Face embeddings / inference stack
+deepface==0.0.93
+tensorflow==2.15.1
+tf-keras==2.15.1
+flatbuffers==25.2.10
+h5py==3.10.0
+
+# Optional: only needed if you use capture_training_photos.py in Flask API mode
+flask==3.0.3

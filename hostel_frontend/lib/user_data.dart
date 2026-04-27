@@ -9,6 +9,7 @@ import 'screens/features/profile_view.dart';
 import 'screens/features/menu_view.dart';
 import 'screens/features/menu_edit_view.dart';
 import 'screens/features/new_admissions_view.dart';
+import 'screens/features/face_registration_view.dart';
 import 'admin/staff_management_view.dart';
 import 'admin/hostel_management_view.dart';
 import 'admin/notice_management_view.dart';
@@ -141,6 +142,11 @@ class UserSession {
             title: 'Food Menu',
             icon: Icons.restaurant_menu_outlined,
             page: const MenuView(),
+          ),
+          RoleFunction(
+            title: 'Face Registration',
+            icon: Icons.face_retouching_natural,
+            page: const FaceRegistrationView(),
           ),
           RoleFunction(
             title: 'Profile',
@@ -293,6 +299,16 @@ class UserSession {
             title: 'Students',
             icon: Icons.group_outlined,
             page: const StudentsView(),
+          ),
+          RoleFunction(
+            title: 'Attendance',
+            icon: Icons.assignment_turned_in_outlined,
+            page: const AttendanceView(),
+          ),
+          RoleFunction(
+            title: 'Leaves',
+            icon: Icons.event_busy_outlined,
+            page: const LeavesView(),
           ),
           RoleFunction(
             title: 'Complaints',
