@@ -4,6 +4,7 @@ import '../../user_data.dart';
 import '../../theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import '../../admin/csv_helper.dart';
 
 class LeavesView extends StatefulWidget {
   const LeavesView({super.key});
@@ -236,7 +237,44 @@ class _LeavesViewState extends State<LeavesView> with SingleTickerProviderStateM
               label: const Text('Request Leave', style: TextStyle(color: Colors.white)),
               backgroundColor: AppTheme.primaryColor,
             ).animate().fadeIn().slideY(begin: 1)
-          : null,
+          : (UserSession.role == 'WARDEN' || UserSession.role == 'COUNSELOR' || UserSession.role == 'PARENT')
+              ? FloatingActionButton.extended(
+                  onPressed: () async {
+                    final pending = await ApiManager.fetchLeaves(history: false);
+                    final history = await ApiManager.fetchLeaves(history: true);
+                    final allLeaves = [...pending, ...history];
+                    if (allLeaves.isNotEmpty) {
+                      final mappedLeaves = allLeaves.map((l) {
+                        String getApprovalStatus(dynamic val) {
+                          if (val == 1) return 'Approved';
+                          if (val == -1) return 'Rejected';
+                          return 'Pending';
+                        }
+                        
+                        // We copy the map since we're adding new properties
+                        return {
+                          ...Map<String, dynamic>.from(l),
+                          'parent_status': getApprovalStatus(l['parent_approved']),
+                          'counselor_status': getApprovalStatus(l['counselor_approved']),
+                          'warden_status': getApprovalStatus(l['warden_approved']),
+                        };
+                      }).toList();
+
+                      final csv = CsvExportHelper.convertToCsv(
+                        mappedLeaves,
+                        ['Student Name', 'From', 'To', 'Reason', 'Parent Approval', 'Counselor Approval', 'Warden Approval', 'Final Status'],
+                        ['student_name', 'from_date', 'to_date', 'reason', 'parent_status', 'counselor_status', 'warden_status', 'status'],
+                      );
+                      if (context.mounted) CsvExportHelper.showExportDialog(context, 'Leaves', csv);
+                    } else {
+                      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No leave data to export.')));
+                    }
+                  },
+                  icon: const Icon(Icons.file_download_outlined, color: Colors.white),
+                  label: const Text('Export CSV', style: TextStyle(color: Colors.white)),
+                  backgroundColor: AppTheme.primaryColor,
+                ).animate().fadeIn()
+              : null,
       body: isStudent
           ? _buildList(_pendingFuture, true)
           : TabBarView(

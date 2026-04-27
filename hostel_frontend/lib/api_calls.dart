@@ -304,6 +304,14 @@ class ApiManager {
     return _getList('/warden/${UserSession.userId}/attendance/$date');
   }
 
+  static Future<List<dynamic>> fetchWardenAttendanceHistory() async {
+    return _getList('/warden/${UserSession.userId}/attendance-history');
+  }
+
+  static Future<List<dynamic>> fetchDetailedAttendanceHistory() async {
+    return _getList('/warden/${UserSession.userId}/attendance-history/detailed');
+  }
+
   // --- Room Transfers ---
   static Future<List<dynamic>> fetchRoomTransfers() async {
     return _getList('/warden/${UserSession.userId}/room-transfers');

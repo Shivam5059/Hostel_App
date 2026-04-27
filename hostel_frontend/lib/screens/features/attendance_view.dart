@@ -4,6 +4,7 @@ import '../../user_data.dart';
 import '../../theme.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../admin/csv_helper.dart';
 
 class AttendanceView extends StatefulWidget {
   const AttendanceView({super.key});
@@ -180,9 +181,104 @@ class _AttendanceViewState extends State<AttendanceView> {
   }
 
   Widget _buildWardenPerspective() {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: const TabBar(
+          labelColor: AppTheme.primaryColor,
+          unselectedLabelColor: AppTheme.textSecondaryColor,
+          indicatorColor: AppTheme.primaryColor,
+          tabs: [Tab(text: 'Mark Attendance'), Tab(text: 'History')],
+        ),
+        body: TabBarView(
+          children: [
+            _buildMarkAttendanceTab(),
+            _buildHistoryTab(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryTab() {
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'export_history',
+        onPressed: () async {
+          final detailedRecords = await ApiManager.fetchDetailedAttendanceHistory();
+          if (detailedRecords.isNotEmpty) {
+            final csv = CsvExportHelper.convertToCsv(
+              detailedRecords,
+              ['Date', 'Student Name', 'Roll No', 'Status'],
+              ['attendance_date', 'student_name', 'roll_no', 'status'],
+            );
+            if (mounted) CsvExportHelper.showExportDialog(context, 'Attendance_History', csv);
+          } else {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No history to export.')));
+          }
+        },
+        icon: const Icon(Icons.file_download_outlined, color: Colors.white),
+        label: const Text('Export CSV', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppTheme.primaryColor,
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: ApiManager.fetchWardenAttendanceHistory(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) return const Center(child: Text('Failed to load history'));
+          
+          final history = snapshot.data ?? [];
+          if (history.isEmpty) return const Center(child: Text('No attendance history found.'));
+          
+          return ListView.builder(
+            padding: const EdgeInsets.all(24),
+            itemCount: history.length,
+            itemBuilder: (context, index) {
+              final h = history[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(h['attendance_date'] ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildMiniStat('Total', h['total_students'].toString(), Colors.blue),
+                          _buildMiniStat('Present', h['present_count'].toString(), Colors.green),
+                          _buildMiniStat('Absent', h['absent_count'].toString(), Colors.red),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+        Text(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _buildMarkAttendanceTab() {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'submit_attendance',
         onPressed: _isSubmitting ? null : () async {
            final students = await _studentsFuture;
            _submitWardenAttendance(students);

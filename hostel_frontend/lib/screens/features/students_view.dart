@@ -25,16 +25,23 @@ class _StudentsViewState extends State<StudentsView> {
 
   void _refresh() {
     setState(() {
-      if (UserSession.role == 'RECTOR') {
-        _myStudentsFuture = ApiManager.fetchAllStudents();
+      final role = UserSession.role;
+      if (role == 'RECTOR' || role == 'ADMIN') {
+        final allFuture = ApiManager.fetchAllStudents();
+        _myStudentsFuture = allFuture.then(
+          (list) => list.where((s) => s['room_number'] != null).toList(),
+        );
+        _unassignedStudentsFuture = allFuture.then(
+          (list) => list.where((s) => s['room_number'] == null).toList(),
+        );
+      } else if (role == 'COUNSELOR') {
+        _myStudentsFuture = ApiManager.fetchAssignedStudents();
+        _unassignedStudentsFuture = ApiManager.fetchUnassignedStudents();
+      } else if (role == 'WARDEN') {
+        _myStudentsFuture = ApiManager.fetchAssignedStudents();
+        _unassignedStudentsFuture = ApiManager.fetchUnassignedRoomStudents();
       } else {
         _myStudentsFuture = ApiManager.fetchAssignedStudents();
-      }
-
-      if (UserSession.role == 'COUNSELOR') {
-        _unassignedStudentsFuture = ApiManager.fetchUnassignedStudents();
-      } else if (UserSession.role == 'WARDEN') {
-        _unassignedStudentsFuture = ApiManager.fetchUnassignedRoomStudents();
       }
     });
   }
@@ -99,13 +106,17 @@ class _StudentsViewState extends State<StudentsView> {
   Widget build(BuildContext context) {
     final role = UserSession.role;
     // roles that don't have an 'Unassigned' tab
-    if (role != 'COUNSELOR' && role != 'WARDEN') {
+    if (role != 'COUNSELOR' && role != 'WARDEN' && role != 'ADMIN' && role != 'RECTOR') {
       return _buildStudentList(_myStudentsFuture, isUnassigned: false);
     }
 
     final String unassignedLabel = role == 'COUNSELOR'
         ? 'Unassigned'
         : 'No Room';
+    
+    final String assignedLabel = (role == 'ADMIN' || role == 'RECTOR')
+        ? 'Allotted Room'
+        : 'My Students';
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -121,7 +132,7 @@ class _StudentsViewState extends State<StudentsView> {
                 unselectedLabelColor: Colors.grey,
                 indicatorColor: AppTheme.primaryColor,
                 tabs: [
-                  Tab(text: 'My Students'),
+                  Tab(text: assignedLabel),
                   Tab(text: unassignedLabel),
                 ],
               ),
@@ -140,10 +151,12 @@ class _StudentsViewState extends State<StudentsView> {
           ],
         ),
       ),
-      floatingActionButton: UserSession.role == 'ADMIN'
+      floatingActionButton: (UserSession.role == 'ADMIN' || UserSession.role == 'RECTOR' || UserSession.role == 'WARDEN')
           ? FloatingActionButton.extended(
               onPressed: () async {
-                final students = await ApiManager.fetchAllStudents();
+                final students = (UserSession.role == 'ADMIN' || UserSession.role == 'RECTOR')
+                    ? await ApiManager.fetchAllStudents()
+                    : await ApiManager.fetchAssignedStudents();
                 if (students.isNotEmpty) {
                   final csv = CsvExportHelper.convertToCsv(
                     students,
@@ -159,6 +172,12 @@ class _StudentsViewState extends State<StudentsView> {
                   );
                   if (mounted)
                     CsvExportHelper.showExportDialog(context, 'Students', csv);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No students available to export.')),
+                    );
+                  }
                 }
               },
               label: const Text('Export CSV'),
@@ -174,6 +193,7 @@ class _StudentsViewState extends State<StudentsView> {
     Future<List<dynamic>> future, {
     required bool isUnassigned,
   }) {
+    final role = UserSession.role;
     return FutureBuilder<List<dynamic>>(
       future: future,
       builder: (context, snapshot) {
@@ -205,7 +225,7 @@ class _StudentsViewState extends State<StudentsView> {
                 ],
               ),
               child: ListTile(
-                onTap: isUnassigned
+                onTap: (isUnassigned && role != 'ADMIN' && role != 'RECTOR')
                     ? null
                     : () {
                         Navigator.push(
@@ -243,7 +263,7 @@ class _StudentsViewState extends State<StudentsView> {
                 subtitle: Text(
                   'Roll No: ${student['roll_no'] ?? 'N/A'}\nHostel: ${student['hostel_name'] ?? 'No room assigned'}',
                 ),
-                trailing: isUnassigned
+                trailing: (isUnassigned && role != 'ADMIN' && role != 'RECTOR')
                     ? _buildUnassignedAction(student)
                     : const Icon(Icons.chevron_right, color: Colors.grey),
                 isThreeLine: true,
@@ -293,10 +313,12 @@ class _StudentsViewState extends State<StudentsView> {
           const SizedBox(height: 16),
           Text(
             isUnassigned
-                ? (UserSession.role == 'WARDEN'
-                      ? 'All Students have Rooms'
-                      : 'No New Students to Claim')
-                : 'No Students Assigned',
+                ? (UserSession.role == 'COUNSELOR'
+                      ? 'No New Students to Claim'
+                      : 'All Students have Rooms')
+                : (UserSession.role == 'ADMIN' || UserSession.role == 'RECTOR'
+                      ? 'No Students Allotted'
+                      : 'No Students Assigned'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,

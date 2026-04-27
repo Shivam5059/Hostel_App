@@ -357,7 +357,7 @@ def get_leave_history(role):
 @app.route("/api/counselor/<int:counselor_id>/students", methods=["GET"])
 def get_counselor_students(counselor_id):
     query = """
-        SELECT s.student_id, s.roll_no, u.name, u.email, h.hostel_name
+        SELECT s.student_id, s.roll_no, u.name, u.email, u.phone, h.hostel_name, r.room_number
         FROM student s
         JOIN "user" u ON s.user_id = u.user_id
         LEFT JOIN room r ON s.room_id = r.room_id
@@ -369,7 +369,7 @@ def get_counselor_students(counselor_id):
 @app.route("/api/warden/<int:warden_id>/students", methods=["GET"])
 def get_warden_students(warden_id):
     query = """
-        SELECT s.student_id, s.roll_no, u.name, u.email, h.hostel_name
+        SELECT s.student_id, s.roll_no, u.name, u.email, u.phone, h.hostel_name, r.room_number
         FROM student s
         JOIN "user" u ON s.user_id = u.user_id
         JOIN room r ON s.room_id = r.room_id
@@ -381,7 +381,7 @@ def get_warden_students(warden_id):
 @app.route("/api/parent/<int:parent_id>/students", methods=["GET"])
 def get_parent_students(parent_id):
     query = """
-        SELECT s.student_id, s.roll_no, u.name, u.email, h.hostel_name, r.room_number
+        SELECT s.student_id, s.roll_no, u.name, u.email, u.phone, h.hostel_name, r.room_number
         FROM student s
         JOIN "user" u ON s.user_id = u.user_id
         LEFT JOIN room r ON s.room_id = r.room_id
@@ -530,6 +530,18 @@ def get_attendance_history(warden_id):
         FROM attendance a
         WHERE a.warden_id = ?
         GROUP BY a.attendance_date ORDER BY a.attendance_date DESC
+    """
+    return jsonify(query_db(query, [warden_id]))
+
+@app.route("/api/warden/<int:warden_id>/attendance-history/detailed", methods=["GET"])
+def get_detailed_attendance_history(warden_id):
+    query = """
+        SELECT a.attendance_date, u.name as student_name, s.roll_no, a.status
+        FROM attendance a
+        JOIN student s ON a.student_id = s.student_id
+        JOIN "user" u ON s.user_id = u.user_id
+        WHERE a.warden_id = ?
+        ORDER BY a.attendance_date DESC, u.name ASC
     """
     return jsonify(query_db(query, [warden_id]))
 
