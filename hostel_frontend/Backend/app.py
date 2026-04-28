@@ -623,6 +623,73 @@ def get_attendance_date_details(warden_id, date):
     return jsonify(query_db(query, [warden_id, date]))
 
 # ==========================================
+# LATE STUDENTS SYSTEM
+# ==========================================
+@app.route("/api/rector/late-students", methods=["GET"])
+def get_late_students_rector():
+    date_param = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    query = """
+        WITH LastLog AS (
+            SELECT student_id, event_type, log_time
+            FROM (
+                SELECT student_id, event_type, log_time,
+                       ROW_NUMBER() OVER(PARTITION BY student_id ORDER BY log_time DESC) as rn
+                FROM gate_log
+                WHERE DATE(log_time) = ? AND TIME(log_time) <= '21:00:00'
+            )
+            WHERE rn = 1
+        ),
+        LeaveStudents AS (
+            SELECT student_id
+            FROM leave_request
+            WHERE status = 'APPROVED'
+              AND ? BETWEEN from_date AND to_date
+        )
+        SELECT s.student_id, u.name, u.phone, s.roll_no, r.room_number, h.hostel_name, ll.log_time as exit_time
+        FROM student s
+        JOIN "user" u ON s.user_id = u.user_id
+        JOIN LastLog ll ON ll.student_id = s.student_id
+        LEFT JOIN room r ON s.room_id = r.room_id
+        LEFT JOIN hostel h ON s.hostel_id = h.hostel_id
+        WHERE ll.event_type = 'exit'
+          AND s.student_id NOT IN (SELECT student_id FROM LeaveStudents)
+        ORDER BY h.hostel_name, r.room_number, u.name
+    """
+    return jsonify(query_db(query, [date_param, date_param]))
+
+@app.route("/api/warden/<int:warden_id>/late-students", methods=["GET"])
+def get_late_students_warden(warden_id):
+    date_param = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    query = """
+        WITH LastLog AS (
+            SELECT student_id, event_type, log_time
+            FROM (
+                SELECT student_id, event_type, log_time,
+                       ROW_NUMBER() OVER(PARTITION BY student_id ORDER BY log_time DESC) as rn
+                FROM gate_log
+                WHERE DATE(log_time) = ? AND TIME(log_time) <= '21:00:00'
+            )
+            WHERE rn = 1
+        ),
+        LeaveStudents AS (
+            SELECT student_id
+            FROM leave_request
+            WHERE status = 'APPROVED'
+              AND ? BETWEEN from_date AND to_date
+        )
+        SELECT s.student_id, u.name, u.phone, s.roll_no, r.room_number, ll.log_time as exit_time
+        FROM student s
+        JOIN "user" u ON s.user_id = u.user_id
+        JOIN LastLog ll ON ll.student_id = s.student_id
+        LEFT JOIN room r ON s.room_id = r.room_id
+        WHERE ll.event_type = 'exit'
+          AND s.hostel_id = (SELECT hostel_id FROM hostel WHERE warden_id = ?)
+          AND s.student_id NOT IN (SELECT student_id FROM LeaveStudents)
+        ORDER BY r.room_number, u.name
+    """
+    return jsonify(query_db(query, [date_param, date_param, warden_id]))
+
+# ==========================================
 # COMPLAINT SYSTEM
 # ==========================================
 @app.route("/api/complaints", methods=["POST"])

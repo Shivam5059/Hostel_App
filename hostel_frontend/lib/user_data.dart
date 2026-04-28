@@ -14,6 +14,7 @@ import 'admin/staff_management_view.dart';
 import 'admin/hostel_management_view.dart';
 import 'admin/notice_management_view.dart';
 import 'admin/admin_stats_view.dart';
+import 'screens/features/late_students_view.dart';
 
 class RoleFunction {
   final String title;
@@ -200,6 +201,11 @@ class UserSession {
             page: const RoomTransferView(),
           ),
           RoleFunction(
+            title: 'Late Students',
+            icon: Icons.access_time_outlined,
+            page: const LateStudentsView(),
+          ),
+          RoleFunction(
             title: 'Food Menu',
             icon: Icons.restaurant_menu_outlined,
             page: const MenuView(),
@@ -255,6 +261,11 @@ class UserSession {
             title: 'Complaints',
             icon: Icons.report_problem_outlined,
             page: const ComplaintsView(),
+          ),
+          RoleFunction(
+            title: 'Late Students',
+            icon: Icons.access_time_outlined,
+            page: const LateStudentsView(),
           ),
           RoleFunction(
             title: 'Food Menu',

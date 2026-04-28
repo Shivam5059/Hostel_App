@@ -321,6 +321,16 @@ class ApiManager {
     return _getList('/warden/${UserSession.userId}/attendance-history/detailed');
   }
 
+  // --- Late Students ---
+  static Future<List<dynamic>> fetchLateStudents(String date) async {
+    if (UserSession.role == 'RECTOR') {
+      return _getList('/rector/late-students?date=$date');
+    } else if (UserSession.role == 'WARDEN') {
+      return _getList('/warden/${UserSession.userId}/late-students?date=$date');
+    }
+    return [];
+  }
+
   // --- Room Transfers ---
   static Future<List<dynamic>> fetchRoomTransfers() async {
     return _getList('/warden/${UserSession.userId}/room-transfers');
