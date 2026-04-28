@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
@@ -1279,15 +1279,18 @@ def get_admin_stats():
 # ==========================================
 # FACE RECOGNITION REGISTRATION
 # ==========================================
-
 @app.route("/api/student/<int:student_id>/face/upload", methods=["POST"])
 def upload_face_photos(student_id):
-    student = query_db("SELECT s.roll_no, u.name FROM student s JOIN \"user\" u ON s.user_id = u.user_id WHERE s.student_id = ?", [student_id], one=True)
+    student = query_db(
+        "SELECT s.roll_no, u.name FROM student s JOIN \"user\" u ON s.user_id = u.user_id WHERE s.student_id = ?",
+        [student_id],
+        one=True,
+    )
     if not student:
         return jsonify({"message": "Student not found"}), 404
 
-    roll_no = student['roll_no']
-    name = student['name']
+    roll_no = student["roll_no"]
+    name = student["name"]
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     face_data_dir = os.path.join(base_dir, "face_recognition", "face_data")
@@ -1295,7 +1298,7 @@ def upload_face_photos(student_id):
 
     os.makedirs(student_dir, exist_ok=True)
 
-    required_files = ['front', 'left', 'right', 'up', 'down']
+    required_files = ["front", "left", "right", "up", "down"]
     saved_files = []
 
     for direction in required_files:
@@ -1333,40 +1336,30 @@ def upload_face_photos(student_id):
         writer.writeheader()
         writer.writerows(existing_entries)
 
-    return jsonify({"message": f"Saved {len(saved_files)} photos successfully."})
-
-
-@app.route("/api/admin/face/train", methods=["POST"])
-def trigger_face_training():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    train_script = os.path.join(base_dir, "face_recognition", "train_model.py")
-    
-    if not os.path.exists(train_script):
-        return jsonify({"message": "Training script not found"}), 404
-
     def run_training():
         try:
             print("[Backend] Starting asynchronous model training...")
+            train_script = os.path.join(base_dir, "face_recognition", "train_model.py")
             subprocess.run([sys.executable, train_script], check=True)
             print("[Backend] Training completed successfully.")
-        except subprocess.CalledProcessError as e:
-            print(f"[Backend] Training failed: {e}")
         except Exception as e:
             print(f"[Backend] Training error: {e}")
 
-    thread = threading.Thread(target=run_training)
+    thread = threading.Thread(target=run_training, daemon=True)
     thread.start()
 
-    return jsonify({"message": "Training triggered successfully. This will take a few minutes."})
+    return jsonify({
+        "message": f"Saved {len(saved_files)} photos successfully. Model training started automatically."
+    }), 200
+
 
 @app.route("/api/recognition-event", methods=["POST"])
 def handle_recognition_event():
-    """Endpoint for Raspberry Pi to send face recognition entry/exit logs."""
     data = request.get_json()
     if not data:
         return jsonify({"message": "No data provided"}), 400
 
-    roll_no = data.get("student_id") # Pi sends roll_no as student_id
+    roll_no = data.get("student_id")
     event_type = data.get("event_type")
     timestamp = data.get("timestamp")
     confidence = data.get("confidence")
@@ -1374,15 +1367,13 @@ def handle_recognition_event():
     if not all([roll_no, event_type, timestamp]):
         return jsonify({"message": "Missing required fields"}), 400
 
-    # Look up the actual database student_id from roll_no
     student = query_db("SELECT student_id FROM student WHERE roll_no = ?", [roll_no], one=True)
     if not student:
         print(f"[GateLog] Unknown roll_no: {roll_no}")
         return jsonify({"message": "Student not found"}), 404
 
-    db_student_id = student['student_id']
+    db_student_id = student["student_id"]
 
-    # Insert the gate log
     try:
         execute_db("""
             INSERT INTO gate_log (student_id, event_type, confidence, log_time)
@@ -1393,3 +1384,24 @@ def handle_recognition_event():
     except Exception as e:
         print(f"[GateLog] Failed to insert: {e}")
         return jsonify({"message": "Database error"}), 500
+
+
+@app.route("/api/model/status", methods=["GET"])
+def model_status():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, "face_recognition", "trained_model.pkl")
+
+    if os.path.exists(model_path):
+        return jsonify({"exists": True, "timestamp": os.path.getmtime(model_path)})
+    return jsonify({"exists": False, "timestamp": 0})
+
+
+@app.route("/api/model/download", methods=["GET"])
+def download_model():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, "face_recognition", "trained_model.pkl")
+
+    if not os.path.exists(model_path):
+        return jsonify({"message": "Model not found"}), 404
+
+    return send_file(model_path, as_attachment=True, download_name="trained_model.pkl")

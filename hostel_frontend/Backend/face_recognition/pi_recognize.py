@@ -26,7 +26,7 @@ except Exception:
 # ── Configuration ─────────────────────────────────────────────────────────────
 BASE_DIR             = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH           = os.path.join(BASE_DIR, "trained_model.pkl")
-FLASK_API_URL        = os.getenv("FLASK_API_URL", "").strip()
+FLASK_API_URL        = os.getenv("FLASK_API_URL", "http://10.44.148.170:3000/api/recognition-event")
 AUTH_TOKEN           = os.getenv("FLASK_API_TOKEN", "")
 
 SIMILARITY_THRESHOLD = 0.60   # lower if showing Unknown, raise if wrong person shown
@@ -36,12 +36,52 @@ FRAME_SKIP           = 3      # process every 3rd frame (saves CPU on Pi)
 MIN_FACE_SIZE        = 80     # ignore faces smaller than this (too far away)
 DISPLAY_WIDTH        = 800    # display window width
 DISPLAY_HEIGHT       = 600    # display window height
-UNKNOWN_SNAPSHOT_COOLDOWN_SECONDS = int(os.getenv("UNKNOWN_SNAPSHOT_COOLDOWN_SECONDS", "10"))
 
 ENTRY_LOG_FILE       = os.path.join(BASE_DIR, "entry_logs.csv")
 ENTRY_FALLBACK_FILE  = os.path.join(BASE_DIR, "entry_logs_fallback.csv")
-AUDIT_LOG_FILE       = os.path.join(BASE_DIR, "recognition_audit_logs.csv")
-UNKNOWN_SNAPSHOT_DIR = os.path.join(BASE_DIR, "unknown_audit_faces")
+
+def check_and_update_model():
+    """Download model from Flask server if newer version available."""
+    if not FLASK_API_URL:
+        return
+
+    base_url = FLASK_API_URL.rsplit("/api/", 1)[0]
+
+    try:
+        res  = requests.get(f"{base_url}/api/model/status", timeout=5)
+        data = res.json()
+
+        if not data.get("exists"):
+            print("[Model] No model on server yet")
+            return
+
+        server_ts = data.get("timestamp", 0)
+
+        # Compare with local
+        if os.path.exists(MODEL_PATH):
+            local_ts = os.path.getmtime(MODEL_PATH)
+            if local_ts >= server_ts:
+                print("[Model] Already up to date")
+                return
+
+        # Download new model
+        print("[Model] Newer model found. Downloading...")
+        res = requests.get(
+            f"{base_url}/api/model/download",
+            timeout=120,
+            stream=True,
+        )
+        if res.status_code == 200:
+            with open(MODEL_PATH, "wb") as f:
+                for chunk in res.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print("[Model] Downloaded successfully!")
+        else:
+            print(f"[Model] Download failed: {res.status_code}")
+
+    except Exception as e:
+        print(f"[Model] Could not reach server: {e}")
+
 
 # Student ID -> Real Name mapping
 _names_file = os.path.join(BASE_DIR, "face_data", "student_names.csv")
@@ -170,6 +210,7 @@ def lookup_student_name(student_id):
 def send_event_to_flask(payload):
     """Send recognition event to Flask backend if endpoint is configured."""
     if not FLASK_API_URL:
+        print("  [Warn] FLASK_API_URL not configured")
         return
 
     if requests is None:
@@ -181,9 +222,13 @@ def send_event_to_flask(payload):
         headers["Authorization"] = f"Bearer {AUTH_TOKEN}"
 
     try:
+        print(f"  [API] Sending to {FLASK_API_URL}: {payload}")
         response = requests.post(FLASK_API_URL, json=payload, headers=headers, timeout=5)
+        print(f"  [API] Response: {response.status_code} - {response.text[:200]}")
         if response.status_code >= 400:
             print(f"  [Warn] Flask API error {response.status_code}: {response.text[:120]}")
+        elif response.status_code == 201:
+            print(f"  [API] ✓ Event logged successfully in database")
     except Exception as e:
         print(f"  [Warn] Flask API request failed: {e}")
 
@@ -196,117 +241,6 @@ def _append_log_row(log_file, row):
         if not file_exists:
             writer.writerow(["student_id", "student_name", "confidence", "timestamp", "event_type"])
         writer.writerow(row)
-
-
-def _append_audit_row(row):
-    """Append one audit row used for daily reporting and traceability."""
-    file_exists = os.path.exists(AUDIT_LOG_FILE) and os.path.getsize(AUDIT_LOG_FILE) > 0
-    with open(AUDIT_LOG_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow([
-                "timestamp",
-                "event_type",
-                "student_id",
-                "student_name",
-                "confidence",
-                "note",
-                "snapshot_path",
-            ])
-        writer.writerow(row)
-
-
-def log_audit_event(event_type, student_id="", student_name="", confidence="", note="", snapshot_path=""):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    row = [timestamp, event_type, student_id, student_name, confidence, note, snapshot_path]
-    try:
-        _append_audit_row(row)
-    except Exception as e:
-        print(f"  [Warn] Failed to write audit log: {e}")
-
-
-def save_unknown_snapshot(face_crop):
-    """Save unknown face crop for audit investigations."""
-    if face_crop is None or face_crop.size == 0:
-        return ""
-
-    os.makedirs(UNKNOWN_SNAPSHOT_DIR, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    filename = f"unknown_{ts}.jpg"
-    path = os.path.join(UNKNOWN_SNAPSHOT_DIR, filename)
-    ok = cv2.imwrite(path, face_crop)
-    return path if ok else ""
-
-
-def _is_same_date(timestamp_str, report_date):
-    return (timestamp_str or "").strip().startswith(report_date)
-
-
-def generate_daily_report(report_date):
-    """Print daily summary report from audit and entry logs."""
-    if not report_date:
-        report_date = datetime.now().strftime("%Y-%m-%d")
-
-    total_events = 0
-    recognized_logged = 0
-    low_confidence = 0
-    unknown = 0
-    confidence_values = []
-
-    if os.path.exists(AUDIT_LOG_FILE):
-        with open(AUDIT_LOG_FILE, "r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if not _is_same_date(row.get("timestamp", ""), report_date):
-                    continue
-                total_events += 1
-
-                event_type = (row.get("event_type") or "").strip()
-                if event_type == "recognized_logged":
-                    recognized_logged += 1
-                elif event_type == "low_confidence":
-                    low_confidence += 1
-                elif event_type == "unknown":
-                    unknown += 1
-
-                conf = (row.get("confidence") or "").strip()
-                if conf:
-                    try:
-                        confidence_values.append(float(conf))
-                    except ValueError:
-                        pass
-
-    entry_count = 0
-    exit_count = 0
-    for log_path in [ENTRY_LOG_FILE, ENTRY_FALLBACK_FILE]:
-        if not os.path.exists(log_path):
-            continue
-        with open(log_path, "r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if not _is_same_date(row.get("timestamp", ""), report_date):
-                    continue
-                et = (row.get("event_type") or "").strip().lower()
-                if et == "entry":
-                    entry_count += 1
-                elif et == "exit":
-                    exit_count += 1
-
-    known_rate = (recognized_logged / total_events * 100.0) if total_events else 0.0
-    avg_conf = (sum(confidence_values) / len(confidence_values)) if confidence_values else 0.0
-
-    print("\n" + "=" * 55)
-    print(f"DAILY RECOGNITION REPORT ({report_date})")
-    print("=" * 55)
-    print(f"Total audit events     : {total_events}")
-    print(f"Recognized + logged    : {recognized_logged}")
-    print(f"Low confidence events  : {low_confidence}")
-    print(f"Unknown events         : {unknown}")
-    print(f"Known recognition rate : {known_rate:.1f}%")
-    print(f"Average confidence     : {avg_conf:.1f}%")
-    print(f"Entry count            : {entry_count}")
-    print(f"Exit count             : {exit_count}")
-    print("=" * 55 + "\n")
 
 def log_entry(student_id, student_name, confidence, entry_type):
     """Log entry or exit to terminal and CSV file."""
@@ -574,8 +508,6 @@ def open_pi_camera():
 def main():
     parser = argparse.ArgumentParser(description="Raspberry Pi face recognition tool")
     parser.add_argument("--lookup-name", help="Print the mapped student name for a student ID and exit")
-    parser.add_argument("--daily-report", action="store_true", help="Print daily recognition report from logs")
-    parser.add_argument("--report-date", help="Date for report in YYYY-MM-DD format (default: today)")
     args = parser.parse_args()
 
     if args.lookup_name:
@@ -586,10 +518,8 @@ def main():
             print(f"{args.lookup_name.strip()} -> [not found]")
         return
 
-    if args.daily_report:
-        generate_daily_report(args.report_date)
-        return
-
+    # Auto download latest model from Flask server
+    check_and_update_model()
     # ── Load trained model ──
     print("[Pi] Loading trained model...")
     if not os.path.exists(MODEL_PATH):
@@ -624,8 +554,6 @@ def main():
 
     frame_num   = 0
     last_logged   = {}   # student_id → last log time
-    last_low_conf_logged = {}  # student_id -> last low-confidence audit time
-    last_unknown_snapshot_time = None
     current_face  = None
     student_state = {}   # student_id → "entry" or "exit"
 
@@ -702,17 +630,6 @@ def main():
                     color = (0, 165, 255)
                     label = f"Low confidence: {student_name} | {confidence}%"
 
-                    last_low = last_low_conf_logged.get(student_id)
-                    if not last_low or (now - last_low) > timedelta(seconds=COOLDOWN_SECONDS):
-                        log_audit_event(
-                            event_type="low_confidence",
-                            student_id=student_id,
-                            student_name=student_name,
-                            confidence=confidence,
-                            note=f"below_gate_{LOG_CONFIDENCE_GATE}",
-                        )
-                        last_low_conf_logged[student_id] = now
-
                     cv2.rectangle(display_frame, (dx, dy), (dx + dw, dy + dh), color, 2)
                     draw_label(display_frame, label, dx, dy, color)
                     continue
@@ -732,13 +649,6 @@ def main():
                         student_state[student_id] = entry_type
 
                         log_entry(student_id, student_name, confidence, entry_type)
-                        log_audit_event(
-                            event_type="recognized_logged",
-                            student_id=student_id,
-                            student_name=student_name,
-                            confidence=confidence,
-                            note=entry_type,
-                        )
                         last_logged[student_id] = now
 
                 # Show different color for entry vs exit
@@ -750,20 +660,6 @@ def main():
                 current_face = None
                 color        = (0, 0, 200)
                 label        = "Unknown"
-
-                now = datetime.now()
-                if (
-                    last_unknown_snapshot_time is None
-                    or (now - last_unknown_snapshot_time) > timedelta(seconds=UNKNOWN_SNAPSHOT_COOLDOWN_SECONDS)
-                ):
-                    snapshot_path = save_unknown_snapshot(face_crop)
-                    log_audit_event(
-                        event_type="unknown",
-                        confidence="",
-                        note="no_match",
-                        snapshot_path=snapshot_path,
-                    )
-                    last_unknown_snapshot_time = now
 
             # Draw face box and name label on display frame
             cv2.rectangle(display_frame, (dx, dy), (dx + dw, dy + dh), color, 2)
