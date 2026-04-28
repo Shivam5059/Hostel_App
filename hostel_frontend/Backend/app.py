@@ -47,6 +47,14 @@ def send_email(receiver, content):
         print(f"[send_email] Failed: {e}")
         return False
 
+def send_email_async(app_instance, receiver, content):
+    """
+    Helper function to send emails asynchronously inside an app context.
+    """
+    with app_instance.app_context():
+        send_email(receiver, content)
+
+
 @app.route("/", methods=["GET"])
 def index():
     return "Hostel Management Backend is running 🚀 (Python Flask)"
@@ -277,6 +285,28 @@ def approve_reject_leave(role, leave_id, action):
     execute_db(query, [value, leave_id])
 
     new_status = update_leave_status(leave_id)
+    
+    # Notify parent via email asynchronously
+    if role == 'parent':
+        details_query = """
+            SELECT p.email as parent_email, p.name as parent_name, su.name as student_name
+            FROM leave_request lr
+            JOIN student s ON lr.student_id = s.student_id
+            JOIN "user" p ON s.parent_id = p.user_id
+            JOIN "user" su ON s.user_id = su.user_id
+            WHERE lr.leave_id = ?
+        """
+        details = query_db(details_query, [leave_id], one=True)
+        if details and details['parent_email']:
+            action_text = "approved" if action == 'approve' else "rejected"
+            content = (f"Hello {details['parent_name']},\n\n"
+                       f"You have successfully {action_text} the leave request for your child, {details['student_name']}.\n"
+                       f"The current overall status of the leave is: {new_status}.\n\n"
+                       f"Thank you,\n"
+                       f"DormNet Hostel Management")
+            
+            threading.Thread(target=send_email_async, args=(app, details['parent_email'], content)).start()
+
     return jsonify({"message": f"Action recorded. Leave status: {new_status}"})
 
 @app.route("/api/<role>/leaves", methods=["GET"])
@@ -1077,13 +1107,31 @@ def register_staff():
 
     if not all([name, email, password, role]):
         return jsonify({"message": "Missing required fields"}), 400
+        
+    if role not in ['RECTOR', 'WARDEN', 'COUNSELOR']:
+        return jsonify({"message": "Invalid role specified"}), 400
     
     if query_db('SELECT user_id FROM "user" WHERE email = ?', [email]):
         return jsonify({"message": "Email already exists"}), 409
+        
+    if phone and query_db('SELECT user_id FROM "user" WHERE phone = ?', [phone]):
+        return jsonify({"message": "Phone number already exists"}), 409
 
     hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     execute_db('INSERT INTO "user" (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)', 
                [name, email, phone, hashed, role])
+               
+    email_content = f"""Hello {name},
+
+Your {role.lower()} account has been created successfully. 
+
+Login details:
+Email: {email}
+Password: {password}
+
+Please log in and change your password as soon as possible.
+"""
+    send_email(email, email_content)
     
     return jsonify({"message": "Staff registered successfully"}), 201
 
@@ -1096,6 +1144,9 @@ def update_staff(user_id):
 
     if not name or not role:
         return jsonify({"message": "Name and Role are required"}), 400
+        
+    if role not in ['RECTOR', 'WARDEN', 'COUNSELOR']:
+        return jsonify({"message": "Invalid role specified"}), 400
 
     execute_db('UPDATE "user" SET name = ?, phone = ?, role = ? WHERE user_id = ?', 
                [name, phone, role, user_id])

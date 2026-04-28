@@ -26,81 +26,12 @@ class _StaffManagementViewState extends State<StaffManagementView> {
     });
   }
 
-  Future<void> _showStaffForm({Map<String, dynamic>? staff}) async {
-    final nameCtrl = TextEditingController(text: staff?['name']);
-    final emailCtrl = TextEditingController(text: staff?['email']);
-    final phoneCtrl = TextEditingController(text: staff?['phone']);
-    final passCtrl = TextEditingController();
-    String role = staff?['role'] ?? 'WARDEN';
-
-    final result = await showDialog<bool>(
+  void _showStaffForm({Map<String, dynamic>? staff}) {
+    showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) {
-        return AlertDialog(
-          title: Text(staff == null ? 'Add New Staff' : 'Edit Staff'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
-                const SizedBox(height: 12),
-                if (staff == null) ...[
-                  TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email')),
-                  const SizedBox(height: 12),
-                  TextField(controller: passCtrl, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
-                  const SizedBox(height: 12),
-                ],
-                TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone')),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: role,
-                  decoration: const InputDecoration(labelText: 'Role'),
-                  items: ['RECTOR', 'WARDEN', 'COUNSELOR'].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                  onChanged: (v) => setDialogState(() => role = v!),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(staff == null ? 'Create' : 'Update'),
-            ),
-          ],
-        );
-      }),
+      barrierDismissible: false,
+      builder: (ctx) => _StaffFormDialog(staff: staff, onSuccess: () async => _refresh()),
     );
-
-    if (result == true) {
-      bool ok;
-      String? error;
-      if (staff == null) {
-        final res = await ApiManager.registerStaffAdmin({
-          'name': nameCtrl.text,
-          'email': emailCtrl.text,
-          'phone': phoneCtrl.text,
-          'password': passCtrl.text,
-          'role': role,
-        });
-        ok = res.$1;
-        error = res.$2;
-      } else {
-        final res = await ApiManager.updateStaffAdmin(staff['user_id'], {
-          'name': nameCtrl.text,
-          'phone': phoneCtrl.text,
-          'role': role,
-        });
-        ok = res.$1;
-        error = res.$2;
-      }
-
-      if (ok) {
-        _refresh();
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Operation failed'), backgroundColor: AppTheme.accentColor));
-      }
-    }
   }
 
   Future<void> _deleteStaff(int id, String name) async {
@@ -147,7 +78,8 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                   ['Name', 'Email', 'Role', 'Phone', 'Hostel'], 
                   ['name', 'email', 'role', 'phone', 'hostel_name']
                 );
-                if (mounted) CsvExportHelper.showExportDialog(context, 'Staff', csv);
+                if (!context.mounted) return;
+                CsvExportHelper.showExportDialog(context, 'Staff', csv);
               }
             },
           ),
@@ -210,6 +142,192 @@ class _StaffManagementViewState extends State<StaffManagementView> {
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class _StaffFormDialog extends StatefulWidget {
+  final Map<String, dynamic>? staff;
+  final Future<void> Function() onSuccess;
+
+  const _StaffFormDialog({this.staff, required this.onSuccess});
+
+  @override
+  State<_StaffFormDialog> createState() => _StaffFormDialogState();
+}
+
+class _StaffFormDialogState extends State<_StaffFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _passCtrl;
+  late String _role;
+  bool _loading = false;
+  bool _obscure = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.staff?['name']);
+    _emailCtrl = TextEditingController(text: widget.staff?['email']);
+    _phoneCtrl = TextEditingController(text: widget.staff?['phone']);
+    _passCtrl = TextEditingController();
+    _role = widget.staff?['role'] ?? 'WARDEN';
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+
+    bool ok;
+    String? error;
+    if (widget.staff == null) {
+      final res = await ApiManager.registerStaffAdmin({
+        'name': _nameCtrl.text.trim(),
+        'email': _emailCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'password': _passCtrl.text,
+        'role': _role,
+      });
+      ok = res.$1;
+      error = res.$2;
+    } else {
+      final res = await ApiManager.updateStaffAdmin(widget.staff!['user_id'], {
+        'name': _nameCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'role': _role,
+      });
+      ok = res.$1;
+      error = res.$2;
+    }
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (ok) {
+      if (!context.mounted) return;
+      Navigator.pop(context);
+      await widget.onSuccess();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(widget.staff == null ? 'Staff registered successfully!' : 'Staff updated successfully!'),
+        backgroundColor: Colors.green,
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error ?? 'Operation failed'),
+        backgroundColor: AppTheme.accentColor,
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(widget.staff == null ? Icons.person_add_outlined : Icons.edit_outlined, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  Text(widget.staff == null ? 'Add New Staff' : 'Edit Staff', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _nameCtrl,
+                enabled: !_loading,
+                decoration: InputDecoration(labelText: 'Name', prefixIcon: const Icon(Icons.person_outline), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
+              ),
+              const SizedBox(height: 12),
+              if (widget.staff == null) ...[
+                TextFormField(
+                  controller: _emailCtrl,
+                  enabled: !_loading,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(labelText: 'Email', prefixIcon: const Icon(Icons.email_outlined), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Email is required';
+                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim())) return 'Invalid email';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _passCtrl,
+                  enabled: !_loading,
+                  obscureText: _obscure,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  validator: (v) => v == null || v.length < 6 ? 'Password must be at least 6 characters' : null,
+                ),
+                const SizedBox(height: 12),
+              ],
+              TextFormField(
+                controller: _phoneCtrl,
+                enabled: !_loading,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(labelText: 'Phone (Optional)', prefixIcon: const Icon(Icons.phone_outlined), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _role,
+                decoration: InputDecoration(labelText: 'Role', prefixIcon: const Icon(Icons.badge_outlined), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                items: ['RECTOR', 'WARDEN', 'COUNSELOR'].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+                onChanged: _loading ? null : (v) => setState(() => _role = v!),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _loading ? null : () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _loading ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _loading 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Text(widget.staff == null ? 'Create' : 'Update', style: const TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
