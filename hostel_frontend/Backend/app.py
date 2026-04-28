@@ -1330,7 +1330,6 @@ def get_admin_stats():
 # ==========================================
 # FACE RECOGNITION REGISTRATION
 # ==========================================
-
 @app.route("/api/student/<int:student_id>/face/upload", methods=["POST"])
 def upload_face_photos(student_id):
     student = query_db(
