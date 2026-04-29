@@ -237,7 +237,7 @@ class _LeavesViewState extends State<LeavesView> with SingleTickerProviderStateM
               label: const Text('Request Leave', style: TextStyle(color: Colors.white)),
               backgroundColor: AppTheme.primaryColor,
             ).animate().fadeIn().slideY(begin: 1)
-          : (UserSession.role == 'WARDEN' || UserSession.role == 'COUNSELOR' || UserSession.role == 'ADMIN')
+          : (UserSession.role == 'WARDEN' || UserSession.role == 'COUNSELOR' || UserSession.role == 'ADMIN' || UserSession.role == 'RECTOR')
               ? FloatingActionButton.extended(
                   onPressed: () async {
                     final pending = await ApiManager.fetchLeaves(history: false);
@@ -337,7 +337,7 @@ class _LeavesViewState extends State<LeavesView> with SingleTickerProviderStateM
                           const SizedBox(height: 8),
                           Text('Reason: ${l['reason']}'),
 
-                          if (!isStudent && !isHistoryTab && UserSession.role != 'ADMIN') ...[
+                          if (!isStudent && !isHistoryTab && UserSession.role != 'ADMIN' && UserSession.role != 'RECTOR') ...[
                             const Divider(height: 24),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,

@@ -332,7 +332,7 @@ def get_assigned_leaves(role):
         assigned_column = 'h.warden_id'
         assigned_id = warden_id
         condition = "lr.status = 'PENDING' AND lr.parent_approved = 1 AND lr.warden_approved = 0"
-    elif role == 'admin':
+    elif role in ['admin', 'rector']:
         assigned_column = '1'
         assigned_id = 1
         condition = "lr.status = 'PENDING'"
@@ -374,7 +374,7 @@ def get_leave_history(role):
         assigned_column = 'h.warden_id'
         assigned_id = warden_id
         approved_column = 'lr.warden_approved'
-    elif role == 'admin':
+    elif role in ['admin', 'rector']:
         assigned_column = '1'
         assigned_id = 1
         approved_column = "(CASE WHEN lr.status != 'PENDING' THEN 1 ELSE 0 END)"

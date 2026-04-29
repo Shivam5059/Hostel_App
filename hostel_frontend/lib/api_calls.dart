@@ -214,6 +214,8 @@ class ApiManager {
       return _getList('/warden/leaves$suffix?wardenId=${UserSession.userId}');
     } else if (role == 'ADMIN') {
       return _getList('/admin/leaves$suffix');
+    } else if (role == 'RECTOR') {
+      return _getList('/rector/leaves$suffix');
     }
     return [];
   }

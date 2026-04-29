@@ -258,6 +258,11 @@ class UserSession {
             page: const NewAdmissionView(),
           ),
           RoleFunction(
+            title: 'Leaves',
+            icon: Icons.event_busy_outlined,
+            page: const LeavesView(),
+          ),
+          RoleFunction(
             title: 'Complaints',
             icon: Icons.report_problem_outlined,
             page: const ComplaintsView(),
