@@ -36,6 +36,7 @@ FRAME_SKIP           = 3      # process every 3rd frame (saves CPU on Pi)
 MIN_FACE_SIZE        = 80     # ignore faces smaller than this (too far away)
 DISPLAY_WIDTH        = 800    # display window width
 DISPLAY_HEIGHT       = 600    # display window height
+DEFAULT_START_STATUS = "entry" # Assume student is 'entry' first, so first log is 'exit'
 
 ENTRY_LOG_FILE       = os.path.join(BASE_DIR, "entry_logs.csv")
 ENTRY_FALLBACK_FILE  = os.path.join(BASE_DIR, "entry_logs_fallback.csv")
@@ -229,8 +230,13 @@ def send_event_to_flask(payload):
             print(f"  [Warn] Flask API error {response.status_code}: {response.text[:120]}")
         elif response.status_code == 201:
             print(f"  [API] ✓ Event logged successfully in database")
+            try:
+                return response.json().get("event_type")
+            except Exception:
+                pass
     except Exception as e:
         print(f"  [Warn] Flask API request failed: {e}")
+    return None
 
 
 def _append_log_row(log_file, row):
@@ -281,7 +287,7 @@ def log_entry(student_id, student_name, confidence, entry_type):
         "timestamp": timestamp,
         "event_type": entry_type,
     }
-    send_event_to_flask(payload)
+    return send_event_to_flask(payload)
 
 def draw_label(frame, text, x, y, color):
     """Draw filled rectangle with text above face box."""
@@ -505,6 +511,160 @@ def open_pi_camera():
     return None
 
 
+def mainPC():
+    """Version of main() tailored for PC/Laptop use."""
+    # Auto download latest model from Flask server
+    check_and_update_model()
+    
+    # ── Load trained model ──
+    print("[PC] Loading trained model...")
+    if not os.path.exists(MODEL_PATH):
+        print(f"[Error] Model not found: {MODEL_PATH}")
+        return
+
+    with open(MODEL_PATH, "rb") as f:
+        data = pickle.load(f)
+
+    known_embeddings = data.get("embeddings", [])
+    known_labels     = data.get("labels", [])
+    if not known_embeddings or not known_labels:
+        print("[Error] Model is empty or invalid. Re-run train_model.py")
+        return
+
+    print(f"[PC] Students  : {len(set(known_labels))}")
+    print(f"[PC] Embeddings: {len(known_labels)}")
+
+    # ── Open laptop camera ──
+    camera = cv2.VideoCapture(0)
+    if not camera.isOpened():
+        print("[Error] Could not open laptop camera")
+        return
+    
+    # Set resolution for PC camera
+    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+    # ── Face detector ──
+    face_det = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+
+    print("\n[PC] Recognition started. Press Q to quit.\n")
+
+    frame_num   = 0
+    last_logged   = {}   # student_id → last log time
+    current_face  = None
+    student_state = {}   # student_id → "entry" or "exit"
+
+    while True:
+        # ── Read frame ──
+        ret, frame = camera.read()
+        if not ret:
+            continue
+
+        frame_num += 1
+
+        # Show every frame but only process every FRAME_SKIP frames
+        display_frame = cv2.resize(frame, (DISPLAY_WIDTH, DISPLAY_HEIGHT))
+
+        if frame_num % FRAME_SKIP != 0:
+            cv2.imshow("Hostel Entry - Face Recognition", display_frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+            continue
+
+        # ── Detect faces ──
+        gray    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray_eq = cv2.equalizeHist(gray)
+        faces   = face_det.detectMultiScale(
+            gray_eq,
+            scaleFactor  = 1.1,
+            minNeighbors = 5,
+            minSize      = (MIN_FACE_SIZE, MIN_FACE_SIZE),
+        )
+
+        for (x, y, w, h) in faces:
+            # Crop face with padding
+            pad = int(w * 0.25)
+            x1  = max(0, x - pad)
+            y1  = max(0, y - pad)
+            x2  = min(frame.shape[1], x + w + pad)
+            y2  = min(frame.shape[0], y + h + pad)
+            face_crop = frame[y1:y2, x1:x2]
+
+            if face_crop.size == 0:
+                continue
+
+            # Get embedding
+            embedding = get_embedding(face_crop)
+            if embedding is None:
+                continue
+
+            # Match against model
+            student_id, confidence = find_best_match(
+                embedding, known_embeddings, known_labels
+            )
+
+            # Scale face coordinates to display size
+            scale_x = DISPLAY_WIDTH  / frame.shape[1]
+            scale_y = DISPLAY_HEIGHT / frame.shape[0]
+            dx  = int(x  * scale_x)
+            dy  = int(y  * scale_y)
+            dw  = int(w  * scale_x)
+            dh  = int(h  * scale_y)
+
+            if student_id:
+                student_name = get_display_name(student_id)
+
+                now  = datetime.now()
+                last = last_logged.get(student_id)
+
+                if confidence < LOG_CONFIDENCE_GATE:
+                    current_face = None
+                    color = (0, 165, 255)
+                    label = f"Low confidence: {student_name} | {confidence}%"
+
+                    cv2.rectangle(display_frame, (dx, dy), (dx + dw, dy + dh), color, 2)
+                    draw_label(display_frame, label, dx, dy, color)
+                    continue
+
+                if current_face != student_id:
+                    current_face = student_id
+
+                    if not last or (now - last) > timedelta(seconds=COOLDOWN_SECONDS):
+                        # Determine entry or exit by alternating
+                        last_type = student_state.get(student_id, DEFAULT_START_STATUS)
+                        entry_type = "exit" if last_type == "entry" else "entry"
+
+                        # Save new state (sync with server if possible)
+                        server_type = log_entry(student_id, student_name, confidence, entry_type)
+                        student_state[student_id] = server_type or entry_type
+                        last_logged[student_id] = now
+
+                # Show different color for entry vs exit
+                last_type = student_state.get(student_id, DEFAULT_START_STATUS)
+                color     = (0, 200, 0) if last_type == "entry" else (0, 165, 255)
+                label     = f"{student_name} | {last_type.upper()} | {confidence}%"
+
+            else:
+                current_face = None
+                color        = (0, 0, 200)
+                label        = "Unknown"
+
+            # Draw face box and name label on display frame
+            cv2.rectangle(display_frame, (dx, dy), (dx + dw, dy + dh), color, 2)
+            draw_label(display_frame, label, dx, dy, color)
+
+        cv2.imshow("Hostel Entry - Face Recognition", display_frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Cleanup
+    camera.release()
+    cv2.destroyAllWindows()
+    print("\n[PC] Stopped.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Raspberry Pi face recognition tool")
     parser.add_argument("--lookup-name", help="Print the mapped student name for a student ID and exit")
@@ -639,20 +799,17 @@ def main():
 
                     if not last or (now - last) > timedelta(seconds=COOLDOWN_SECONDS):
                         # Determine entry or exit by alternating
-                        last_type = student_state.get(student_id, "exit")
-                        if last_type == "exit":
-                            entry_type = "entry"
-                        else:
-                            entry_type = "exit"
+                        last_type = student_state.get(student_id, DEFAULT_START_STATUS)
+                        entry_type = "exit" if last_type == "entry" else "entry"
 
-                        # Save new state
-                        student_state[student_id] = entry_type
+                        # Save new state (sync with server if possible)
 
-                        log_entry(student_id, student_name, confidence, entry_type)
+                        server_type = log_entry(student_id, student_name, confidence, entry_type)
+                        student_state[student_id] = server_type or entry_type
                         last_logged[student_id] = now
 
                 # Show different color for entry vs exit
-                last_type = student_state.get(student_id, "entry")
+                last_type = student_state.get(student_id, DEFAULT_START_STATUS)
                 color     = (0, 200, 0) if last_type == "entry" else (0, 165, 255)
                 label     = f"{student_name} | {last_type.upper()} | {confidence}%"
 
@@ -676,4 +833,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    mainPC()

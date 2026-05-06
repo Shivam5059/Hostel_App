@@ -4,3 +4,10 @@ student_id,student_name,confidence,timestamp,event_type
 23bsit058,kevina parera,75.4,2026-04-07 21:39:37,exit
 23bsit058,kevina parera,79.4,2026-04-08 09:48:01,entry
 23bsit058,kevina parera,76.3,2026-04-16 10:08:40,entry
+23bsit058,kevina parera,75.5,2026-05-06 20:09:56,entry
+23bsit058,kevina parera,81.2,2026-05-06 20:10:17,exit
+23bsit058,kevina parera,78.1,2026-05-06 20:10:38,entry
+23bsit058,kevina parera,82.0,2026-05-06 20:11:07,exit
+23bsit058,kevina parera,80.4,2026-05-06 21:26:15,exit
+23bsit058,kevina parera,76.1,2026-05-06 21:26:34,entry
+23bsit058,kevina parera,75.1,2026-05-06 21:26:56,exit

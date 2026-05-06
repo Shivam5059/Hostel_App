@@ -1478,29 +1478,45 @@ def handle_recognition_event():
         return jsonify({"message": "No data provided"}), 400
 
     roll_no = data.get("student_id")
-    event_type = data.get("event_type")
     timestamp = data.get("timestamp")
     confidence = data.get("confidence")
 
-    if not all([roll_no, event_type, timestamp]):
+    if not roll_no or not timestamp:
         return jsonify({"message": "Missing required fields"}), 400
 
     student = query_db("SELECT student_id FROM student WHERE roll_no = ?", [roll_no], one=True)
     if not student:
-        print(f"[GateLog] Unknown roll_no: {roll_no}")
         return jsonify({"message": "Student not found"}), 404
 
     db_student_id = student["student_id"]
+
+    # --- Toggle Logic (Backend as Source of Truth) ---
+    DEFAULT_FIRST_LOG = "exit"  # Easy to change to "entry" if required
+    
+    last_log = query_db(
+        "SELECT event_type FROM gate_log WHERE student_id = ? ORDER BY log_time DESC LIMIT 1",
+        [db_student_id],
+        one=True
+    )
+
+    if not last_log:
+        event_type = DEFAULT_FIRST_LOG
+    else:
+        event_type = "entry" if last_log["event_type"] == "exit" else "exit"
 
     try:
         execute_db("""
             INSERT INTO gate_log (student_id, event_type, confidence, log_time)
             VALUES (?, ?, ?, ?)
         """, [db_student_id, event_type, confidence, timestamp])
-        print(f"[GateLog] Logged {event_type} for {roll_no} at {timestamp}")
-        return jsonify({"message": "Event logged successfully"}), 201
+        
+        print(f"[GateLog] Auto-toggled to {event_type} for {roll_no}")
+        return jsonify({
+            "message": "Event logged successfully", 
+            "event_type": event_type
+        }), 201
     except Exception as e:
-        print(f"[GateLog] Failed to insert: {e}")
+        print(f"[GateLog] Database error: {e}")
         return jsonify({"message": "Database error"}), 500
 
 
