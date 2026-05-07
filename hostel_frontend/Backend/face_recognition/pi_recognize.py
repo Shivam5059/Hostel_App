@@ -27,7 +27,7 @@ except Exception:
 # ── Configuration ─────────────────────────────────────────────────────────────
 BASE_DIR             = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH           = os.path.join(BASE_DIR, "trained_model.pkl")
-FLASK_API_URL        = os.getenv("FLASK_API_URL", "http://10.:3000/api/recognition-event")
+FLASK_API_URL        = os.getenv("FLASK_API_URL", "http://localhost:3000/api/recognition-event")
 AUTH_TOKEN           = os.getenv("FLASK_API_TOKEN", "")
 
 SIMILARITY_THRESHOLD = 0.60   # lower if showing Unknown, raise if wrong person shown
@@ -994,5 +994,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    #mainPC()
+    #main()
+    mainPC()

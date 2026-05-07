@@ -7,8 +7,6 @@ import os
 import csv
 import subprocess
 import threading
-import secrets
-import string
 import sys
 from db import query_db, execute_db, execute_many_db, get_db_connection
 
@@ -632,10 +630,10 @@ def get_late_students_rector():
     date_param = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
     query = """
         WITH LastLog AS (
-            SELECT roll_no, event_type, log_time
+            SELECT student_id, event_type, log_time
             FROM (
-                SELECT roll_no, event_type, log_time,
-                       ROW_NUMBER() OVER(PARTITION BY roll_no ORDER BY log_time DESC) as rn
+                SELECT student_id, event_type, log_time,
+                       ROW_NUMBER() OVER(PARTITION BY student_id ORDER BY log_time DESC) as rn
                 FROM gate_log
                 WHERE DATE(log_time) = ? AND TIME(log_time) <= '21:00:00'
             )
@@ -650,7 +648,7 @@ def get_late_students_rector():
         SELECT s.student_id, u.name, u.phone, s.roll_no, r.room_number, h.hostel_name, ll.log_time as exit_time
         FROM student s
         JOIN "user" u ON s.user_id = u.user_id
-        JOIN LastLog ll ON ll.roll_no = s.roll_no
+        JOIN LastLog ll ON ll.student_id = s.student_id
         LEFT JOIN room r ON s.room_id = r.room_id
         LEFT JOIN hostel h ON s.hostel_id = h.hostel_id
         WHERE ll.event_type = 'exit'
@@ -664,10 +662,10 @@ def get_late_students_warden(warden_id):
     date_param = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
     query = """
         WITH LastLog AS (
-            SELECT roll_no, event_type, log_time
+            SELECT student_id, event_type, log_time
             FROM (
-                SELECT roll_no, event_type, log_time,
-                       ROW_NUMBER() OVER(PARTITION BY roll_no ORDER BY log_time DESC) as rn
+                SELECT student_id, event_type, log_time,
+                       ROW_NUMBER() OVER(PARTITION BY student_id ORDER BY log_time DESC) as rn
                 FROM gate_log
                 WHERE DATE(log_time) = ? AND TIME(log_time) <= '21:00:00'
             )
@@ -682,7 +680,7 @@ def get_late_students_warden(warden_id):
         SELECT s.student_id, u.name, u.phone, s.roll_no, r.room_number, ll.log_time as exit_time
         FROM student s
         JOIN "user" u ON s.user_id = u.user_id
-        JOIN LastLog ll ON ll.roll_no = s.roll_no
+        JOIN LastLog ll ON ll.student_id = s.student_id
         LEFT JOIN room r ON s.room_id = r.room_id
         WHERE ll.event_type = 'exit'
           AND s.hostel_id = (SELECT hostel_id FROM hostel WHERE warden_id = ?)
@@ -1026,8 +1024,7 @@ def register_student():
     if phone and query_db('SELECT user_id FROM "user" WHERE phone = ?', [phone]):
         return jsonify({"message": "Phone number is already registered"}), 409
 
-    password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    hashed = bcrypt.hashpw(roll_no.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -1044,14 +1041,11 @@ def register_student():
         c.close()
         conn.close()
 
-    email_content = f"Hello,\n\nYour student account has been created.\n\nLogin details:\nEmail: {email}\nRoll No: {roll_no}\nPassword: {password}\n\nPlease log in and change your password as soon as possible."
-    send_email(email, email_content)
-
     return jsonify({
         "message": "Student registered successfully",
         "student_id": student_id,
         "user_id": user_id,
-        "temp_password": password
+        "temp_password": roll_no
     }), 201
 
 @app.route("/api/rector/students/new", methods=["GET"])
@@ -1494,14 +1488,14 @@ def handle_recognition_event():
     if not student:
         return jsonify({"message": "Student not found"}), 404
 
-    db_roll_no = student["roll_no"]
+    db_student_id = student["roll_no"]
 
     # --- Toggle Logic (Backend as Source of Truth) ---
     DEFAULT_FIRST_LOG = "exit"  # Easy to change to "entry" if required
     
     last_log = query_db(
-        "SELECT event_type FROM gate_log WHERE roll_no = ? ORDER BY log_time DESC LIMIT 1",
-        [db_roll_no],
+        "SELECT event_type FROM gate_log WHERE student_id = ? ORDER BY log_time DESC LIMIT 1",
+        [db_student_id],
         one=True
     )
 
@@ -1512,9 +1506,9 @@ def handle_recognition_event():
 
     try:
         execute_db("""
-            INSERT INTO gate_log (roll_no, event_type, confidence, log_time)
+            INSERT INTO gate_log (student_id, event_type, confidence, log_time)
             VALUES (?, ?, ?, ?)
-        """, [db_roll_no, event_type, confidence, timestamp])
+        """, [db_student_id, event_type, confidence, timestamp])
         
         print(f"[GateLog] Auto-toggled to {event_type} for {roll_no}")
         return jsonify({
@@ -1532,16 +1526,17 @@ def latest_recognition_state():
     try:
         rows = query_db(
             """
-            SELECT gl.roll_no, gl.event_type
+            SELECT s.roll_no, gl.event_type
             FROM gate_log gl
+            JOIN student s ON s.student_id = gl.student_id
             JOIN (
-                SELECT roll_no, MAX(log_time) AS max_log_time
+                SELECT student_id, MAX(log_time) AS max_log_time
                 FROM gate_log
-                GROUP BY roll_no
+                GROUP BY student_id
             ) latest
-              ON latest.roll_no = gl.roll_no
+              ON latest.student_id = gl.student_id
              AND latest.max_log_time = gl.log_time
-            WHERE gl.roll_no IS NOT NULL
+            WHERE s.roll_no IS NOT NULL
             """
         )
         state = {}
