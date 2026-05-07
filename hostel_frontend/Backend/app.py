@@ -1520,6 +1520,37 @@ def handle_recognition_event():
         return jsonify({"message": "Database error"}), 500
 
 
+@app.route("/api/recognition-event/latest", methods=["GET"])
+def latest_recognition_state():
+    """Return latest gate state per student roll_no as {roll_no: event_type}."""
+    try:
+        rows = query_db(
+            """
+            SELECT s.roll_no, gl.event_type
+            FROM gate_log gl
+            JOIN student s ON s.student_id = gl.student_id
+            JOIN (
+                SELECT student_id, MAX(log_time) AS max_log_time
+                FROM gate_log
+                GROUP BY student_id
+            ) latest
+              ON latest.student_id = gl.student_id
+             AND latest.max_log_time = gl.log_time
+            WHERE s.roll_no IS NOT NULL
+            """
+        )
+        state = {}
+        for row in rows:
+            roll_no = (row.get("roll_no") or "").strip().lower()
+            event_type = (row.get("event_type") or "").strip().lower()
+            if roll_no and event_type in ("entry", "exit"):
+                state[roll_no] = event_type
+        return jsonify(state), 200
+    except Exception as e:
+        print(f"[GateLog] latest state error: {e}")
+        return jsonify({}), 200
+
+
 @app.route("/api/model/status", methods=["GET"])
 def model_status():
     base_dir = os.path.dirname(os.path.abspath(__file__))

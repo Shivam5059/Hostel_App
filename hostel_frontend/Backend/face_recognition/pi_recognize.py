@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import threading
 import time
+import json
 from deepface import DeepFace
 from datetime import datetime, timedelta
 import csv
@@ -40,6 +41,7 @@ DEFAULT_START_STATUS = "entry" # Assume student is 'entry' first, so first log i
 
 ENTRY_LOG_FILE       = os.path.join(BASE_DIR, "entry_logs.csv")
 ENTRY_FALLBACK_FILE  = os.path.join(BASE_DIR, "entry_logs_fallback.csv")
+STATE_PERSIST_FILE   = os.path.join(BASE_DIR, "student_state.json")
 
 def check_and_update_model():
     """Download model from Flask server if newer version available."""
@@ -82,6 +84,88 @@ def check_and_update_model():
 
     except Exception as e:
         print(f"[Model] Could not reach server: {e}")
+
+
+def save_student_state(state):
+    """Persist latest entry/exit state per student to survive process restarts."""
+    safe = {str(k).strip().lower(): str(v).strip().lower() for k, v in state.items() if v in ("entry", "exit")}
+    try:
+        with open(STATE_PERSIST_FILE, "w", encoding="utf-8") as f:
+            json.dump(safe, f)
+    except Exception as e:
+        print(f"[Warn] Could not save state file: {e}")
+
+
+def load_student_state():
+    if not os.path.exists(STATE_PERSIST_FILE):
+        return {}
+    try:
+        with open(STATE_PERSIST_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            out = {}
+            for k, v in data.items():
+                sv = str(v).strip().lower()
+                if sv in ("entry", "exit"):
+                    out[str(k).strip().lower()] = sv
+            return out
+    except Exception as e:
+        print(f"[Warn] Could not load state file: {e}")
+    return {}
+
+
+def _parse_log_timestamp(text):
+    try:
+        return datetime.strptime((text or "").strip(), "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return datetime.min
+
+
+def load_state_from_logs():
+    """Build latest student entry/exit state from CSV logs."""
+    latest = {}
+    for path in (ENTRY_LOG_FILE, ENTRY_FALLBACK_FILE):
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", newline="", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    sid = (row.get("student_id") or "").strip().lower()
+                    etype = (row.get("event_type") or "").strip().lower()
+                    ts = _parse_log_timestamp(row.get("timestamp"))
+                    if not sid or etype not in ("entry", "exit"):
+                        continue
+                    prev = latest.get(sid)
+                    if prev is None or ts >= prev[0]:
+                        latest[sid] = (ts, etype)
+        except Exception as e:
+            print(f"[Warn] Could not read log state from {path}: {e}")
+
+    return {sid: etype for sid, (_ts, etype) in latest.items()}
+
+
+def recover_state_from_server(base_url):
+    """Ask backend for latest event_type per roll number."""
+    if not base_url or requests is None:
+        return {}
+    headers = {}
+    if AUTH_TOKEN:
+        headers["Authorization"] = f"Bearer {AUTH_TOKEN}"
+    try:
+        response = requests.get(f"{base_url}/api/recognition-event/latest", headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json() or {}
+            if isinstance(data, dict):
+                cleaned = {}
+                for k, v in data.items():
+                    sk = str(k).strip().lower()
+                    sv = str(v).strip().lower()
+                    if sk and sv in ("entry", "exit"):
+                        cleaned[sk] = sv
+                return cleaned
+    except Exception:
+        pass
+    return {}
 
 
 # Student ID -> Real Name mapping
@@ -551,10 +635,12 @@ def mainPC():
 
     print("\n[PC] Recognition started. Press Q to quit.\n")
 
-    frame_num   = 0
-    last_logged   = {}   # student_id → last log time
-    current_face  = None
-    student_state = {}   # student_id → "entry" or "exit"
+    frame_num = 0
+    last_logged = {}   # student_id -> last log time
+    current_face = None
+    student_state = load_student_state()
+    student_state.update(load_state_from_logs())
+    print(f"[PC] Loaded state for {len(student_state)} students")
 
     while True:
         # ── Read frame ──
@@ -615,6 +701,7 @@ def mainPC():
 
             if student_id:
                 student_name = get_display_name(student_id)
+                sid_key = (student_id or "").strip().lower()
 
                 now  = datetime.now()
                 last = last_logged.get(student_id)
@@ -633,16 +720,17 @@ def mainPC():
 
                     if not last or (now - last) > timedelta(seconds=COOLDOWN_SECONDS):
                         # Determine entry or exit by alternating
-                        last_type = student_state.get(student_id, DEFAULT_START_STATUS)
+                        last_type = student_state.get(sid_key, DEFAULT_START_STATUS)
                         entry_type = "exit" if last_type == "entry" else "entry"
 
                         # Save new state (sync with server if possible)
                         server_type = log_entry(student_id, student_name, confidence, entry_type)
-                        student_state[student_id] = server_type or entry_type
+                        student_state[sid_key] = server_type or entry_type
                         last_logged[student_id] = now
+                        save_student_state(student_state)
 
                 # Show different color for entry vs exit
-                last_type = student_state.get(student_id, DEFAULT_START_STATUS)
+                    last_type = student_state.get(sid_key, DEFAULT_START_STATUS)
                 color     = (0, 200, 0) if last_type == "entry" else (0, 165, 255)
                 label     = f"{student_name} | {last_type.upper()} | {confidence}%"
 
@@ -712,10 +800,19 @@ def main():
 
     print("\n[Pi] Recognition started. Press Q to quit.\n")
 
-    frame_num   = 0
-    last_logged   = {}   # student_id → last log time
-    current_face  = None
-    student_state = {}   # student_id → "entry" or "exit"
+    frame_num = 0
+    last_logged = {}   # student_id -> last log time
+    current_face = None
+    student_state = load_student_state()
+    student_state.update(load_state_from_logs())
+
+    base_url = FLASK_API_URL.rsplit("/api/", 1)[0] if FLASK_API_URL and "/api/" in FLASK_API_URL else None
+    server_state = recover_state_from_server(base_url)
+    if server_state:
+        student_state.update(server_state)
+
+    save_student_state(student_state)
+    print(f"[Pi] Loaded state for {len(student_state)} students")
 
     while True:
         # ── Read frame ──
@@ -781,6 +878,7 @@ def main():
 
             if student_id:
                 student_name = get_display_name(student_id)
+                sid_key = (student_id or "").strip().lower()
 
                 now  = datetime.now()
                 last = last_logged.get(student_id)
@@ -799,17 +897,18 @@ def main():
 
                     if not last or (now - last) > timedelta(seconds=COOLDOWN_SECONDS):
                         # Determine entry or exit by alternating
-                        last_type = student_state.get(student_id, DEFAULT_START_STATUS)
+                        last_type = student_state.get(sid_key, DEFAULT_START_STATUS)
                         entry_type = "exit" if last_type == "entry" else "entry"
 
                         # Save new state (sync with server if possible)
 
                         server_type = log_entry(student_id, student_name, confidence, entry_type)
-                        student_state[student_id] = server_type or entry_type
+                        student_state[sid_key] = server_type or entry_type
                         last_logged[student_id] = now
+                        save_student_state(student_state)
 
                 # Show different color for entry vs exit
-                last_type = student_state.get(student_id, DEFAULT_START_STATUS)
+                last_type = student_state.get(sid_key, DEFAULT_START_STATUS)
                 color     = (0, 200, 0) if last_type == "entry" else (0, 165, 255)
                 label     = f"{student_name} | {last_type.upper()} | {confidence}%"
 
@@ -833,5 +932,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    mainPC()
+    main()
+    #mainPC()
