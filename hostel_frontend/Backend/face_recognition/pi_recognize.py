@@ -27,7 +27,7 @@ except Exception:
 # ── Configuration ─────────────────────────────────────────────────────────────
 BASE_DIR             = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH           = os.path.join(BASE_DIR, "trained_model.pkl")
-FLASK_API_URL        = os.getenv("FLASK_API_URL", "http://10.44.148.170:3000/api/recognition-event")
+FLASK_API_URL        = os.getenv("FLASK_API_URL", "http://10.:3000/api/recognition-event")
 AUTH_TOKEN           = os.getenv("FLASK_API_TOKEN", "")
 
 SIMILARITY_THRESHOLD = 0.60   # lower if showing Unknown, raise if wrong person shown
@@ -46,6 +46,10 @@ STATE_PERSIST_FILE   = os.path.join(BASE_DIR, "student_state.json")
 def check_and_update_model():
     """Download model from Flask server if newer version available."""
     if not FLASK_API_URL:
+        return
+
+    if requests is None:
+        print("[Model] requests not installed; skipping model update")
         return
 
     base_url = FLASK_API_URL.rsplit("/api/", 1)[0]
@@ -84,6 +88,60 @@ def check_and_update_model():
 
     except Exception as e:
         print(f"[Model] Could not reach server: {e}")
+
+
+def check_and_update_student_names():
+    """Download student_names.csv from Flask server when newer version exists."""
+    if not FLASK_API_URL:
+        return
+
+    if requests is None:
+        print("[Names] requests not installed; skipping names update")
+        return
+
+    base_url = FLASK_API_URL.rsplit("/api/", 1)[0]
+
+    try:
+        res = requests.get(f"{base_url}/api/student-names/status", timeout=5)
+        data = res.json()
+
+        if not data.get("exists"):
+            print("[Names] No student_names.csv on server yet")
+            return
+
+        server_ts = data.get("timestamp", 0)
+
+        if os.path.exists(_names_file):
+            local_ts = os.path.getmtime(_names_file)
+            if local_ts >= server_ts:
+                print("[Names] Already up to date")
+                return
+
+        print("[Names] Newer names file found. Downloading...")
+        res = requests.get(
+            f"{base_url}/api/student-names/download",
+            timeout=30,
+            stream=True,
+        )
+        if res.status_code == 200:
+            os.makedirs(os.path.dirname(_names_file), exist_ok=True)
+            with open(_names_file, "wb") as f:
+                for chunk in res.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            global STUDENT_NAMES, _names_mtime
+            STUDENT_NAMES = load_student_names()
+            try:
+                _names_mtime = os.path.getmtime(_names_file)
+            except OSError:
+                _names_mtime = None
+
+            print("[Names] Downloaded successfully")
+        else:
+            print(f"[Names] Download failed: {res.status_code}")
+
+    except Exception as e:
+        print(f"[Names] Could not reach server: {e}")
 
 
 def save_student_state(state):
@@ -599,6 +657,8 @@ def mainPC():
     """Version of main() tailored for PC/Laptop use."""
     # Auto download latest model from Flask server
     check_and_update_model()
+    # Auto download latest student names from Flask server
+    check_and_update_student_names()
     
     # ── Load trained model ──
     print("[PC] Loading trained model...")
@@ -768,6 +828,8 @@ def main():
 
     # Auto download latest model from Flask server
     check_and_update_model()
+    # Auto download latest student names from Flask server
+    check_and_update_student_names()
     # ── Load trained model ──
     print("[Pi] Loading trained model...")
     if not os.path.exists(MODEL_PATH):

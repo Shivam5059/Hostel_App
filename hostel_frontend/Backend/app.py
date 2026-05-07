@@ -1570,3 +1570,24 @@ def download_model():
         return jsonify({"message": "Model not found"}), 404
 
     return send_file(model_path, as_attachment=True, download_name="trained_model.pkl")
+
+
+@app.route("/api/student-names/status", methods=["GET"])
+def student_names_status():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    names_path = os.path.join(base_dir, "face_recognition", "face_data", "student_names.csv")
+
+    if os.path.exists(names_path):
+        return jsonify({"exists": True, "timestamp": os.path.getmtime(names_path)})
+    return jsonify({"exists": False, "timestamp": 0})
+
+
+@app.route("/api/student-names/download", methods=["GET"])
+def download_student_names():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    names_path = os.path.join(base_dir, "face_recognition", "face_data", "student_names.csv")
+
+    if not os.path.exists(names_path):
+        return jsonify({"message": "student_names.csv not found"}), 404
+
+    return send_file(names_path, as_attachment=True, download_name="student_names.csv")
