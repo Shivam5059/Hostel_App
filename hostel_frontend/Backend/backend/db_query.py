@@ -13,14 +13,9 @@ import json
 
 QUERIES = [
     """
-    CREATE TABLE IF NOT EXISTS notice (
-      notice_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      author_id INTEGER,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (author_id) REFERENCES "user"(user_id)
-    )
+    update student
+    set roll_no = '23bsit058'
+    where roll_no = 'K101'
     """
 ]
 

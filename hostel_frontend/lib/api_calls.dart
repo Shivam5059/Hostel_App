@@ -4,7 +4,9 @@ import 'package:camera/camera.dart';
 import 'user_data.dart';
 
 class ApiManager {
+  //static const String baseUrl = 'https://23bsit012.pythonanywhere.com/api';
   static const String baseUrl = 'http://localhost:3000/api';
+  
 
   static Map<String, String> get _headers => {
     'Content-Type': 'application/json',
